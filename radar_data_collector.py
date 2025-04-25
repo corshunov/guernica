@@ -6,11 +6,14 @@ from radar import LD2450
 
 
 class RadarDataCollector(threading.Thread):
-    def __init__(self, uartdev):
+    def __init__(self, uartdev, default_bluetooth=True, default_multi_tracking=True):
         super().__init__()
         self.daemon = True
 
         self.uartdev = uartdev
+        self.default_bluetooth = default_bluetooth
+        self.default_multi_tracking = default_multi_tracking
+
         self.queue = queue.Queue()
 
         self.radar = None
@@ -18,11 +21,15 @@ class RadarDataCollector(threading.Thread):
     def _init_radar(self):
         r = LD2450(self.uartdev)
 
-        r.set_bluetooth_on(restart=True)
-        #r.set_bluetooth_off(restart=True)
-    
-        #r.set_single_tracking()
-        r.set_multi_tracking()
+        if default_bluetooth:
+            r.set_bluetooth_on(restart=True)
+        else:
+            r.set_bluetooth_off(restart=True)
+
+        if default_multi_tracking:
+            r.set_multi_tracking()
+        else:
+            r.set_single_tracking()
         
         r.set_zone_filtering(mode=0)
 
@@ -49,7 +56,7 @@ class RadarDataCollector(threading.Thread):
 
                 i = 0
                 while True:
-                    data = self.radar.get_data()
+                    data = self.radar.get_frame()
                     if data is None:
                         continue
 
@@ -66,7 +73,13 @@ class RadarDataCollector(threading.Thread):
                 time.sleep(1)
 
 if __name__ == "__main__":
-    uartdev = "/dev/tty.usbserial-14410"
+    import sys
+
+    try:
+        uartdev = sys.argv[1]
+    except:
+        raise Exception("No argument for UART device provided")
+
     rdc = RadarDataCollector(uartdev)
     rdc.start()
 

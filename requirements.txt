@@ -1,2 +1,2 @@
 pyserial
-matplotlib
+#matplotlib

@@ -3,8 +3,6 @@ import serial
 import time
 
 
-def bs2str(bs):
-    return " ".join([f"{i:02X}" for i in bs])
 
 class LD2450():
     CMD_HEADER = bytes([0xFD, 0xFC, 0xFB, 0xFA])
@@ -12,6 +10,10 @@ class LD2450():
 
     DATA_HEADER = bytes([0xAA, 0xFF, 0x03, 0x00])
     DATA_EOF = bytes([0x55, 0xCC])
+
+    @staticmethod
+    def bs2str(bs):
+        return " ".join([f"{i:02X}" for i in bs])
 
     @staticmethod
     def _convert_data_int16(bs, signed):
@@ -30,11 +32,13 @@ class LD2450():
         flag = int.from_bytes(res[4:6], byteorder='little')
         return not flag
 
-    def __init__(self, uartdev):
+    def __init__(self, uartdev, verbose=False):
         try:
             self._ser = serial.Serial(uartdev, 256000, timeout=1)
         except:
             raise Exception(f"Failed to open UART device '{uartdev}'.") from None
+
+        self.verbose = verbose
 
     def __del__(self):
         try:
@@ -47,7 +51,7 @@ class LD2450():
         return self._ser.in_waiting
 
     def _send_cmd(self, cmd_word, cmd_value, reverse_value=True): 
-        cmd_word_str = bs2str(cmd_word)
+        cmd_word_str = self.bs2str(cmd_word)
 
         cmd_data_len = len(cmd_word + cmd_value)
         cmd_data_len = cmd_data_len.to_bytes(2, byteorder='little')
@@ -63,9 +67,8 @@ class LD2450():
 
         res = self._ser.read_until(self.CMD_EOF)
 
-        #print(bs2str(cmd))
-        #print(bs2str(res))
-        #print()
+        if self.verbose:
+            print(f"CMD: {self.bs2str(cmd)}\nRESPONSE: {self.bs2str(res)}\n\n")
         
         if self.CMD_HEADER in res:
             res = res.split(self.CMD_HEADER)[-1][:-4]
@@ -88,7 +91,7 @@ class LD2450():
         self._send_cmd(cmd_word, cmd_value)
 
     def _execute_cmd(self, cmd_word, cmd_value, reverse_value=True):
-        cmd_word_str = bs2str(cmd_word)
+        cmd_word_str = self.bs2str(cmd_word)
 
         n = 10
         for _ in range(n):
@@ -120,10 +123,13 @@ class LD2450():
 
         return res
 
-    def get_firmware_version(self):
+    def get_firmware_version(self, raw=False):
         cmd_word = [0x00, 0xA0]
         cmd_value = []
         res = self._execute_cmd(cmd_word, cmd_value)
+        
+        if raw:
+            return res
 
         #ft = int.from_bytes(res[6:8], byteorder='little')
         vx = int.from_bytes(res[9:10], byteorder='little')
@@ -165,12 +171,15 @@ class LD2450():
         if restart:
             self.restart()
 
-    def get_mac_address(self):
+    def get_mac_address(self, raw=False):
         cmd_word = [0x00, 0xA5]
         cmd_value = [0x00, 0x01]
         res = self._execute_cmd(cmd_word, cmd_value)
 
-        mac_address = bs2str(res[6:12])
+        if raw:
+            return res
+
+        mac_address = self.bs2str(res[6:12])
         return mac_address
 
     def set_bluetooth_on(self, restart=False):
@@ -189,7 +198,7 @@ class LD2450():
         if restart:
             self.restart()
 
-    def get_tracking_mode(self):
+    def get_tracking_mode(self, raw=False):
         # Tracking modes:
         # 1 - single target
         # 2 - multi target
@@ -197,6 +206,9 @@ class LD2450():
         cmd_word = [0x00, 0x91]
         cmd_value = []
         res = self._execute_cmd(cmd_word, cmd_value)
+
+        if raw:
+            return res
 
         track_mode = int.from_bytes(res[6:8], byteorder='little')
         return track_mode
@@ -211,11 +223,13 @@ class LD2450():
         cmd_value = []
         self._execute_cmd(cmd_word, cmd_value)
 
-    def get_zone_filtering(self):
+    def get_zone_filtering(self, raw=False):
         cmd_word = [0x00, 0xC1]
         cmd_value = []
         res = self._execute_cmd(cmd_word, cmd_value)
-        #print(bs2str(res))
+
+        if raw:
+            return res
 
         # Zone filtering mode: 0 - off; 1 - in region; 2 - out of region.
         mode = int.from_bytes(res[6:8], byteorder='little')
@@ -271,19 +285,22 @@ class LD2450():
         for i in [l1, l2, l3]:
             print(sorted(set(i)))
 
-    def get_all_data(self):
+    def get_all(self):
         return self._ser.read(size=self.in_waiting)
 
-    def get_data(self):
-        l = self._ser.read_until(self.DATA_EOF)
+    def get_frame(self, raw=False, full=False):
+        res = self._ser.read_until(self.DATA_EOF)
 
         #print(len(l), self.in_waiting)
         
         if l[-30:-26] != self.DATA_HEADER:
             print("Invalid data header")
             return
+
+        if raw:
+            return res
         
-        l = l[-26:-4]
+        res = res[-26:-4]
 
         data = []
         for i in range(3):
@@ -295,96 +312,106 @@ class LD2450():
             y = self._convert_data_int16(c[2:4], signed=True)
             data.extend([x,y])
 
-            #s = self._convert_data_int16(c[4:6], signed=True)
-            #d = self._convert_data_int16(c[4:6], signed=False)
-            #data.extend([x,y,s,d])
+            if full:
+                s = self._convert_data_int16(c[4:6], signed=True)
+                d = self._convert_data_int16(c[4:6], signed=False)
+                data.extend([s,d])
         
         return data
 
 if __name__ == "__main__":
-    uartdev = "/dev/tty.usbserial-14410"
+    import sys
+
+    try:
+        uartdev = sys.argv[1]
+    except:
+        raise Exception("No argument for UART device provided")
+
+    try:
+        bl = sys.argv[2]
+    except:
+        raise Exception("No argument for Bluetooth provided")
+
+    if bl not in [0, 1]:
+        raise Exception("Bluetooth argument must be 0 (off) or 1 (on)")
+
+    try:
+        mt = sys.argv[3]
+    except:
+        raise Exception("No argument for multi tracking provided")
+
+    if mt not in [0, 1]:
+        raise Exception("Multi tracking argument must be 0 (off, or single) or 1 (on)")
+
+    try:
+        cmd = sys.argv[4]
+        if cmd not in ["info", "data", "test"]:
+            raise Exception("\nCmd argument must be:\n"
+                            "- empty or 'info': showing radar info\n"
+                            "- 'data': collecting and printing data\n"
+                            "- 'test': conducting test\n")
+    except:
+        cmd = "info"
+
+    ##########
+
     r = LD2450(uartdev)
 
-    r.set_bluetooth_on(restart=True)
-    #r.set_bluetooth_off(restart=True)
+    if bl == 1:
+        r.set_bluetooth_on(restart=True)
+    else:
+        r.set_bluetooth_off(restart=True)
 
-    #r.set_single_tracking()
-    r.set_multi_tracking()
-        
+    if mt == 1:
+        r.set_multi_tracking()
+    else:
+        r.set_single_tracking()
+
     r.set_zone_filtering(mode=0)
-
-    firmware_version = r.get_firmware_version()
-    mac_address = r.get_mac_address()
-    tracking_mode_index = r.get_tracking_mode()
-    zone_filtering = r.get_zone_filtering()
-
-    print(f"Firmware version: {firmware_version}")
-    print(f"MAC address: {mac_address}")
-    print(f"Tracking mode index: {tracking_mode_index}")
-    print(f"Zone filtering: {zone_filtering}")
-
-    input("\nPress Enter to start...\n")
-
-    td = timedelta(seconds=1)
-
-    dt_end = datetime.now() + td
-    n = 0
-    i = 0
-    while True:
-        data = r.get_data()
-        if data is None:
-            continue
-
-        dt = datetime.now()
-        if dt > dt_end:
-            dt_end = dt + td
-            n = i
-            i = 0
-            print()
-
-        i += 1
         
-        #x1,y1,s1,d1,x2,y2,s2,d2,x3,y3,s3,d3 = data
-        #print(f"1) {x1:5}  {y1:5}  {s1:5}  {d1:5}")
-        #print(f"2) {x2:5}  {y2:5}  {s2:5}  {d2:5}")
-        #print(f"3) {x3:5}  {y3:5}  {s3:5}  {d3:5}")
-        #print()
+    ##########
 
-        x1,y1,x2,y2,x3,y3 = data
-        print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {r.in_waiting:3} | samples/sec: {n:3}")
+    if cmd == 'info':
+        firmware_version = r.get_firmware_version()
+        if bl == 1:
+            bl_state = "ON"
+            mac_address = r.get_mac_address()
+        else:
+            bl_state = "OFF"
+            mac_address = "---"
 
-    # ====================
+        if mt == 1:
+            mt_state = "ON"
+        else:
+            mt_state = "OFF"
 
-    #r.test()
+        zone_filtering = r.get_zone_filtering()
 
-    # ====================
+        print(f"Firmware version: {firmware_version}")
+        print(f"Bluetooth: {bl_state} (MAC address: {mac_address})")
+        print(f"Multi tracking: {mt_state}")
+        print(f"Zone filtering: {zone_filtering}")
 
-    #for i in range(3):
-    #    print('single')
-    #    r.set_single_tracking()
-    #    ind = r.get_tracking_mode()
-    #    print(ind)
-    #    time.sleep(5)
-    #
-    #    print('multi')
-    #    r.set_multi_tracking()
-    #    ind = r.get_tracking_mode()
-    #    print(ind)
-    #    time.sleep(5)
+    elif cmd == 'data':
+        td = timedelta(seconds=1)
 
-    # ====================
+        dt_end = datetime.now() + td
+        i = 0
+        while True:
+            data = r.get_frame()
+            if data is None:
+                continue
 
-    #mode = 0
-    #reg1 = None
-    #
-    #mode = 1
-    #reg1 = None
-    #
-    #mode = 1
-    #reg1 = [-3000, 3000, -1000, 4000]
-    #
-    #r.set_zone_filtering(mode, reg1)
-    #v = r.get_zone_filtering()
-    #print(v)
+            dt = datetime.now()
+            if dt > dt_end:
+                dt_end = dt + td
+                i = 0
+                print()
 
-    # ====================
+            i += 1
+            
+            x1,y1,x2,y2,x3,y3 = data
+            print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {r.in_waiting:5} | sample: {i:5}")
+
+    elif cmd == 'test':
+        r.test()
