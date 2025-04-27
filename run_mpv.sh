@@ -1,8 +1,10 @@
 #!/bin/sh
 
+    #"/home/tami/videos/video2.mp4" \
 mpv \
+    "/home/tami/videos/test.mp4" \
     --vo=gpu \
-    --hwdec=v4l2m2m \
+    --hwdec=v4l2m2m-copy \
     --drm-draw-plane=overlay \
     --drm-drmprime-video-plane=primary \
     --audio-device=alsa/hdmi:CARD=vc4hdmi \
