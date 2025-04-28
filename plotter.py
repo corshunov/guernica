@@ -23,7 +23,7 @@ class Plotter():
                  point_size=1000, fontsize=20):
 
         self._ctl_thr = ControllerThread(uartdev, ws, dmin, dmax, verbose)
-        self._ctl = self.ctl_thr.ctl
+        self._ctl = self._ctl_thr._ctl
 
         self._xmin = xmin
         self._xmax = xmax
@@ -98,22 +98,50 @@ if __name__ == "__main__":
     try:
         uartdev = sys.argv[1]
     except:
-        raise Exception("No argument for UART device provided")
+        print("No argument for UART device provided")
+        sys.exit(1)
 
     try:
         ws = sys.argv[2]
     except:
-        raise Exception("No argument for window size provided")
+        print("No argument for window size provided")
+        sys.exit(1)
+
+    try:
+        ws = int(ws)
+        if ws <= 0:
+            raise Exception
+    except:
+        print("Window size must be integer greater than 0")
+        sys.exit(1)
 
     try:
         dmin = sys.argv[3]
     except:
-        raise Exception("No argument for minimum distance provided")
+        print("No argument for minimum distance provided")
+        sys.exit(1)
+
+    try:
+        dmin = int(dmin)
+        if dmin <= 0:
+            raise Exception
+    except:
+        print("Minimum distance must be integer greater than 0")
+        sys.exit(1)
 
     try:
         dmax = sys.argv[4]
     except:
-        raise Exception("No argument for maximum distance provided")
+        print("No argument for maximum distance provided")
+        sys.exit(1)
+
+    try:
+        dmax = int(dmax)
+        if dmax <= dmin:
+            raise Exception
+    except:
+        print("Maximum distance must be integer greater than minimum distance")
+        sys.exit(1)
 
     try:
         xmin = sys.argv[5]
@@ -121,14 +149,36 @@ if __name__ == "__main__":
         xmin = -3000
 
     try:
+        xmin = int(xmin)
+    except:
+        print("Minimum X must be integer")
+        sys.exit(1)
+
+    try:
         xmax = sys.argv[6]
     except:
         xmax = 3000
 
     try:
+        xmax = int(xmax)
+        if xmax <= xmin:
+            raise Exception
+    except:
+        print("Maximum X must be integer greater than minimum X")
+        sys.exit(1)
+
+    try:
         ymin = sys.argv[7]
     except:
         ymin = -4000
+
+    try:
+        ymin = int(ymin)
+        if ymin >= 0:
+            raise Exception
+    except:
+        print("Minimum Y must be integer less than 0")
+        sys.exit(1)
 
     p = Plotter(uartdev, ws, dmin, dmax, verbose=True, xmin=xmin, xmax=xmax, ymin=ymin)
     p.start()

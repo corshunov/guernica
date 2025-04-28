@@ -10,8 +10,8 @@ class Controller():
         return round((x**2 + y**2)**0.5, 2)
 
     def __init__(self, uartdev, ws, dmin, dmax, verbose=True):
-        if dmin > dmax:
-            raise Exception("Argument 'dmin' must be no greater than 'dmax'")
+        if dmin >= dmax:
+            raise Exception("Minimum distance must be less than maximum")
 
         self.rdc = RadarDataCollector(uartdev)
 
@@ -34,6 +34,8 @@ class Controller():
         self.verbose = verbose
 
         self.set_no_targets()
+
+        self.b = 0.
 
     def set_no_targets(self):
         self.x1 = 0.
@@ -98,6 +100,8 @@ class Controller():
                    continue
                 else:
                    self.set_no_targets()
+                   time.sleep(1)
+                   continue
             else:
                 self.update_targets()
                 in_waiting = f"{self.rdc.radar.in_waiting:5}"
@@ -116,22 +120,50 @@ if __name__ == "__main__":
     try:
         uartdev = sys.argv[1]
     except:
-        raise Exception("No argument for UART device provided")
+        print("No argument for UART device provided")
+        sys.exit(1)
 
     try:
         ws = sys.argv[2]
     except:
-        raise Exception("No argument for window size provided")
+        print("No argument for window size provided")
+        sys.exit(1)
+
+    try:
+        ws = int(ws)
+        if ws <= 0:
+            raise Exception
+    except:
+        print("Window size must be integer greater than 0")
+        sys.exit(1)
 
     try:
         dmin = sys.argv[3]
     except:
-        raise Exception("No argument for minimum distance provided")
+        print("No argument for minimum distance provided")
+        sys.exit(1)
+
+    try:
+        dmin = int(dmin)
+        if dmin <= 0:
+            raise Exception
+    except:
+        print("Minimum distance must be integer greater than 0")
+        sys.exit(1)
 
     try:
         dmax = sys.argv[4]
     except:
-        raise Exception("No argument for maximum distance provided")
+        print("No argument for maximum distance provided")
+        sys.exit(1)
+
+    try:
+        dmax = int(dmax)
+        if dmax <= dmin:
+            raise Exception
+    except:
+        print("Maximum distance must be integer greater than minimum distance")
+        sys.exit(1)
 
     ctl = Controller(uartdev, ws, dmin, dmax)
     ctl.start()

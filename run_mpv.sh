@@ -1,6 +1,5 @@
 #!/bin/sh
 
-    #"/home/tami/videos/video2.mp4" \
 mpv \
     "/home/tami/videos/test.mp4" \
     --vo=gpu \

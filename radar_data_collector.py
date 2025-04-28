@@ -21,12 +21,12 @@ class RadarDataCollector(threading.Thread):
     def _init_radar(self):
         r = LD2450(self.uartdev)
 
-        if default_bluetooth:
+        if self.default_bluetooth:
             r.set_bluetooth_on(restart=True)
         else:
             r.set_bluetooth_off(restart=True)
 
-        if default_multi_tracking:
+        if self.default_multi_tracking:
             r.set_multi_tracking()
         else:
             r.set_single_tracking()
@@ -69,6 +69,8 @@ class RadarDataCollector(threading.Thread):
                 if self.active:
                    self.radar = None
                    print("Radar DOWN.")
+                else:
+                   print("Failed to init radar")
 
                 time.sleep(1)
 
@@ -78,14 +80,11 @@ if __name__ == "__main__":
     try:
         uartdev = sys.argv[1]
     except:
-        raise Exception("No argument for UART device provided")
+        print("No argument for UART device provided")
+        sys.exit(1)
 
     rdc = RadarDataCollector(uartdev)
     rdc.start()
-
-    while not rdc.active:
-        print('Waiting for radar to init...')
-        time.sleep(1)
 
     while True:
         if not rdc.empty():

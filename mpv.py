@@ -1,5 +1,4 @@
 import json
-import keyboard
 from pathlib import Path
 import socket
 import time
@@ -46,7 +45,7 @@ class MPVController():
 
             return res_j
         except Exception as e:
-            print("Failed to send CMD: {e}")
+            print(f"Failed to send CMD: {e}")
 
     def load_file(self, path, pause=True, start=0):
         #self._send({"command": ["loadfile", path, "replace",
@@ -84,27 +83,6 @@ class MPVController():
         res = self._send({"command": ["get_property", prop]})
         return res.get("data") if res else None
 
-    def keyboard_controls(self):
-        print("Keyboard control ready: SPACE=Play/Pause, UP/DOWN=Brightness")
-
-        while True:
-            if keyboard.is_pressed("space"):
-                if self.playing:
-                    self.pause()
-                else:
-                    self.play()
-                time.sleep(0.3)
-
-            elif keyboard.is_pressed("k"):
-                self.set_brightness(self.brightness + 0.1)
-                time.sleep(0.2)
-
-            elif keyboard.is_pressed("j"):
-                set_brightness(self.brightness - 0.1)
-                time.sleep(0.2)
-
-            time.sleep(0.05)
-
 if __name__ == "__main__":
     ctl = MPVController()
 
@@ -112,8 +90,3 @@ if __name__ == "__main__":
     #ctl.load_file("/home/tami/video.mp4")
     #ctl.play()
     #ctl.fade_brightness(from_level=-1.0, to_level=0.0, steps=10, delay=0.5)
-
-    #try:
-    #    keyboard_controls()
-    #except KeyboardInterrupt:
-    #    print("Exiting.")

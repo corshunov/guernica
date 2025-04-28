@@ -110,7 +110,7 @@ class LD2450():
             except:
                 pass
         else:
-            raise Exception("Failed to execute cmd '{cmd_word_str}'.")
+            raise Exception(f"Failed to execute cmd '{cmd_word_str}'.")
 
         for _ in range(n):
             try:
@@ -270,7 +270,7 @@ class LD2450():
         l2 = []
         l3 = []
         
-        for i in range(500):
+        for i in range(200):
             print(i)
         
             firmware_version = self.get_firmware_version()
@@ -291,9 +291,9 @@ class LD2450():
     def get_frame(self, raw=False, full=False):
         res = self._ser.read_until(self.DATA_EOF)
 
-        #print(len(l), self.in_waiting)
+        #print(len(res), self.in_waiting)
         
-        if l[-30:-26] != self.DATA_HEADER:
+        if res[-30:-26] != self.DATA_HEADER:
             print("Invalid data header")
             return
 
@@ -306,7 +306,7 @@ class LD2450():
         for i in range(3):
             from_i = i * 8
             to_i = from_i + 8
-            c = l[from_i:to_i]
+            c = res[from_i:to_i]
 
             x = self._convert_data_int16(c[0:2], signed=True)
             y = self._convert_data_int16(c[2:4], signed=True)
@@ -325,33 +325,48 @@ if __name__ == "__main__":
     try:
         uartdev = sys.argv[1]
     except:
-        raise Exception("No argument for UART device provided")
+        print("No argument for UART device provided")
+        sys.exit(1)
 
     try:
         bl = sys.argv[2]
     except:
-        raise Exception("No argument for Bluetooth provided")
+        print("No argument for Bluetooth provided")
+        sys.exit(1)
 
-    if bl not in [0, 1]:
-        raise Exception("Bluetooth argument must be 0 (off) or 1 (on)")
+    try:
+        bl = int(bl)
+        if bl not in [0, 1]:
+            raise Exception
+    except:
+        print("Bluetooth argument must be 0 (off) or 1 (on)")
+        sys.exit(1)
 
     try:
         mt = sys.argv[3]
     except:
-        raise Exception("No argument for multi tracking provided")
+        print("No argument for multi tracking provided")
+        sys.exit(1)
 
-    if mt not in [0, 1]:
-        raise Exception("Multi tracking argument must be 0 (off, or single) or 1 (on)")
+    try:
+        mt = int(mt)
+        if mt not in [0, 1]:
+            raise Exception
+    except:
+        print("Multi tracking argument must be 0 (off, or single) or 1 (on)")
+        sys.exit(1)
 
     try:
         cmd = sys.argv[4]
-        if cmd not in ["info", "data", "test"]:
-            raise Exception("\nCmd argument must be:\n"
-                            "- empty or 'info': showing radar info\n"
-                            "- 'data': collecting and printing data\n"
-                            "- 'test': conducting test\n")
     except:
         cmd = "info"
+
+    if cmd not in ["info", "data", "test"]:
+        print("\nCmd argument must be:\n"
+                        "- empty or 'info': showing radar info\n"
+                        "- 'data': collecting and printing data\n"
+                        "- 'test': conducting test\n")
+        sys.exit(1)
 
     ##########
 

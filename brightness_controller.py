@@ -1,6 +1,4 @@
-import keyboard
 from smbus2 import SMBus
-import time
 
 
 class BrightnessController():

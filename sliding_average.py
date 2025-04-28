@@ -2,7 +2,7 @@ import random
 
 class SlidingAverage():
     @classmethod
-    def show_check(cls, ws=4, n=12):
+    def show_check(cls, n, ws):
         if n <= 0:
             raise Exception("Argument 'n' must be greater than 0")
 
@@ -61,4 +61,33 @@ class SlidingAverage():
         return self.avg
 
 if __name__ == "__main__":
-    SlidingAverage.show_check()
+    import sys
+
+    try:
+        n = sys.argv[1]
+    except:
+        n = 12
+
+    try:
+        n = int(n)
+        if n <= 0:
+            raise Exception
+    except:
+        print("List length must be integer greater than 0")
+        sys.exit(1)
+
+    try:
+        ws = sys.argv[2]
+    except:
+        ws = 4
+
+    try:
+        ws = int(ws)
+        if (ws <= 0) or (ws > n):
+            raise Exception
+    except:
+        print("Window size must be integer in range (0, <list_length>]")
+        sys.exit(1)
+
+    print(f"List length: {n}\nWindow size: {ws}\n")
+    SlidingAverage.show_check(ws, n)
