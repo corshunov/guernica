@@ -31,8 +31,8 @@ class MPVController():
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.connect(str(self.socket_path))
 
-        self.brightness = -100
-        self.playing = False
+        self.set_brightness(0)
+        self.pause()
 
     def _send(self, cmd_j):
         try:
@@ -47,11 +47,11 @@ class MPVController():
         except Exception as e:
             print(f"Failed to send CMD: {e}")
 
-    def load_file(self, path, pause=True, start=0):
-        #self._send({"command": ["loadfile", path, "replace",
-                               #{"pause": pause, "start": str(start)}]})
-        self._send({"command": ["loadfile", path, "replace"]})
-        time.sleep(1)
+    #def load_file(self, path, pause=True, start=0):
+    #    #self._send({"command": ["loadfile", path, "replace",
+    #                           #{"pause": pause, "start": str(start)}]})
+    #    self._send({"command": ["loadfile", path, "replace"]})
+    #    time.sleep(1)
 
     def play(self):
         self._send({"command": ["set_property", "pause", False]})
@@ -61,32 +61,52 @@ class MPVController():
         self._send({"command": ["set_property", "pause", True]})
         self.playing = False
 
-    def seek(self, v, pause=True):
-        self._send({"command": ["seek", v, "absolute"]})
-        self.pause()
-        print("Seek to {v}")
+    #def seek(self, v, pause=True):
+    #    self._send({"command": ["seek", v, "absolute"]})
+    #    self.pause()
+    #    print("Seek to {v}")
 
     def set_brightness(self, v):
-        #v = max(-1.0, min(1.0, v))
+        v = max(-100, min(100, v))
         self.brightness = v
-        self._send(["vf", "set", f"eq=brightness={self.brightness:.2f}"])
+        self._send(["vf", "set", f"eq=brightness={self.brightness}"])
         print(f"Brightness: {self.brightness:.2f}")
 
-    def change_brightness(self, to_v, steps=10, delay=0.5):
-        step = (to_v - self.brightness) / steps
-        for i in range(steps + 1):
-            v = self.brightness + (i * step)
-            self.set_brightness(v)
-            time.sleep(delay)
+    #def change_brightness(self, to_v, steps=10, delay=0.5):
+    #    step = (to_v - self.brightness) / steps
+    #    for i in range(steps + 1):
+    #        v = self.brightness + (i * step)
+    #        self.set_brightness(v)
+    #        time.sleep(delay)
 
-    def get_property(self, prop):
-        res = self._send({"command": ["get_property", prop]})
-        return res.get("data") if res else None
+    #def get_property(self, prop):
+    #    res = self._send({"command": ["get_property", prop]})
+    #    return res.get("data") if res else None
 
 if __name__ == "__main__":
+    d = 0.05
+
     ctl = MPVController()
 
-    #ctl.set_brightness(-1.0)
-    #ctl.load_file("/home/tami/video.mp4")
-    #ctl.play()
-    #ctl.fade_brightness(from_level=-1.0, to_level=0.0, steps=10, delay=0.5)
+    time.sleep(3)
+    ctl.play()
+
+    time.sleep(3)
+    ctl.pause()
+
+    time.sleep(3)
+    ctl.play()
+
+    for i in range(0, 100):
+        ctl.set_brightness(i)
+        time.sleep(d)
+
+    for i in range(100, -100, -1):
+        ctl.set_brightness(i)
+        time.sleep(d)
+
+    for i in range(-100, 0):
+        ctl.set_brightness(i)
+        time.sleep(d)
+
+    ctl.pause()
