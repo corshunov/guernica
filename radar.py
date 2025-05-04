@@ -374,7 +374,8 @@ class LD2450():
 
     def show_data(self, n=None, clean=True):
         if clean:
-            self.clean()
+            #self.clean()
+            self.get_all()
 
         td = timedelta(seconds=1)
 

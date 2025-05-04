@@ -18,7 +18,7 @@ class RadarDataCollector(threading.Thread):
 
         self.radar = self._get_radar()
 
-        self._active = True
+        self.active = True
 
     def _get_radar(self):
         r = LD2450(self.uartdev)
@@ -41,17 +41,11 @@ class RadarDataCollector(threading.Thread):
         self.radar.clean()
 
         #i = 0
-        first_time = True
         while True:
-            if not self._active:
-                print("Radar DOWN.")
+            if not self.active:
                 break
 
             data = self.radar.get_frame()
-            if first_time:
-                print("Radar UP.")
-                first_time = False
-            
             if data is None:
                 continue
 
@@ -60,8 +54,8 @@ class RadarDataCollector(threading.Thread):
                 #continue 
 
             try:
-                #self.queue.put_nowait(data)
-                self.queue.put(data, timeout=0.01)
+                self.queue.put_nowait(data)
+                #self.queue.put(data, timeout=0.01)
             except:
                 print("Queue is full, skipping frame")
 
@@ -73,6 +67,10 @@ class RadarDataCollector(threading.Thread):
     def active(self, f):
         if isinstance(f, bool):
             self._active = f
+            if f:
+                print("Radar UP.")
+            else:
+                print("Radar DOWN.")
         else:
             raise Exception("Invalid argument")
 
@@ -86,14 +84,14 @@ class RadarDataCollector(threading.Thread):
 
     def get(self):
         try:
-            #return self.queue.get_nowait()
-            return self.queue.get(timeout=0.01)
+            return self.queue.get_nowait()
+            #return self.queue.get(timeout=0.01)
         except:
             return None
 
     def run(self):
         while True:
-            if not self._active:
+            if not self.active:
                 time.sleep(1)
                 continue
 
