@@ -29,84 +29,75 @@ class MPVController():
             raise Exception(f"Socket '{self.socket_path}' not found")
 
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.socket.settimeout(1)
         self.socket.connect(str(self.socket_path))
 
-        self.set_brightness(0)
-        self.pause()
+        self._request_id = 0
 
-    def _send(self, cmd_j):
-        try:
-            cmd_b = self._j2b(cmd_j)
-            print(cmd_b)
-            self.socket.send(cmd_b)
+    def _next_request_id(self):
+        self._request_id = (self._request_id % 999) + 1
+        return self._request_id
 
+    def _send_json(self, cmd):
+        request_id = self._next_request_id()
+
+        cmd_j = {"command" : cmd, "request_id": request_id}
+        cmd_b = self._j2b(cmd_j)
+        #print(cmd_b)
+
+        self.socket.send(cmd_b)
+
+        while True:
             res_b = self.socket.recv(4096)
-            res_j = self._b2j(res_b)
+            #print(res_b)
+            for i_res_b in res_b.split(b'\n'):
+                if not i_res_b:
+                    continue
 
-            return res_j
-        except Exception as e:
-            print(f"Failed to send CMD: {e}")
+                res_j = self._b2j(i_res_b)
+                if "request_id" in res_j and res_j["request_id"] == request_id:
+                    return res_j
 
-    #def load_file(self, path, pause=True, start=0):
-    #    #self._send({"command": ["loadfile", path, "replace",
-    #                           #{"pause": pause, "start": str(start)}]})
-    #    self._send({"command": ["loadfile", path, "replace"]})
-    #    time.sleep(1)
+    def get_property(self, name):
+        cmd = ["get_property", name]
+        return self._send_json(cmd)
+
+    def set_property(self, name, value):
+        cmd = ["set_property", name, value]
+        return self._send_json(cmd)
+
+    def clear(self):
+        cmd = ["stop"]
+        return self._send_json(cmd)
+
+    def load_file(self, path):
+        cmd = ["loadfile", str(path), "replace"]
+        return self._send_json(cmd)
+
+    def seek(self, pos, pause=True):
+        cmd = ["seek", pos, "absolute"]
+        return self._send_json(cmd)
+
+    def show_text(self, text):
+        cmd = ["show-text", text]
+        return self._send_json(cmd)
 
     def play(self):
-        self._send({"command": ["set_property", "pause", False]})
-        self.playing = True
+        return self.set_property("pause", False)
 
     def pause(self):
-        self._send({"command": ["set_property", "pause", True]})
-        self.playing = False
+        return self.set_property("pause", True)
 
-    #def seek(self, v, pause=True):
-    #    self._send({"command": ["seek", v, "absolute"]})
-    #    self.pause()
-    #    print("Seek to {v}")
+    def set_brightness(self, value, osd=False):
+        v = max(-100, min(100, value))
+        if osd:
+            self.show_text(f"{v: 4}%")
 
-    def set_brightness(self, v):
-        v = max(-100, min(100, v))
-        self.brightness = v
-        self._send(["vf", "set", f"eq=brightness={self.brightness}"])
-        print(f"Brightness: {self.brightness:.2f}")
+        return self.set_property("brightness", v)
 
-    #def change_brightness(self, to_v, steps=10, delay=0.5):
-    #    step = (to_v - self.brightness) / steps
-    #    for i in range(steps + 1):
-    #        v = self.brightness + (i * step)
-    #        self.set_brightness(v)
-    #        time.sleep(delay)
+    def set_volume(self, value, osd=False):
+        v = max(0, min(100, value))
+        if osd:
+            self.show_text(f"{v: 4}%")
 
-    #def get_property(self, prop):
-    #    res = self._send({"command": ["get_property", prop]})
-    #    return res.get("data") if res else None
-
-if __name__ == "__main__":
-    d = 0.05
-
-    ctl = MPVController()
-
-    time.sleep(3)
-    ctl.play()
-
-    time.sleep(3)
-    ctl.pause()
-
-    time.sleep(3)
-    ctl.play()
-
-    for i in range(0, 100):
-        ctl.set_brightness(i)
-        time.sleep(d)
-
-    for i in range(100, -100, -1):
-        ctl.set_brightness(i)
-        time.sleep(d)
-
-    for i in range(-100, 0):
-        ctl.set_brightness(i)
-        time.sleep(d)
-
-    ctl.pause()
+        return self.set_property("volume", v)

@@ -34,7 +34,7 @@ class Plotter():
 
     def start(self):
         self._ctl_thr.start()
-        self._show_plot()
+        return self._show_plot()
 
     def _show_plot(self):
         fig, ax = plt.subplots(figsize=(15,8))
@@ -56,12 +56,13 @@ class Plotter():
         self._d3t = ax.text(self._xmax-1000, self._ymin+250, '', fontsize=self._fontsize)
         self._brt = ax.text(self._xmin+250,  self._ymin+500, '', fontsize=self._fontsize*2)
         
-        animation = FuncAnimation(fig=fig, func=self._update_plot, cache_frame_data=False, blit=True)
+        ani = FuncAnimation(fig=fig, func=self._update_plot, cache_frame_data=False, blit=True)
 
-        mng = plt.get_current_fig_manager()
-        mng.full_screen_toggle()
+        #mng = plt.get_current_fig_manager()
+        #mng.full_screen_toggle()
 
-        plt.show()
+        #plt.show()
+        return ani
 
     def _update_plot(self, frame):
         ctl = self._ctl

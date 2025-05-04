@@ -1,19 +1,33 @@
 import time
 
+from brightness_controller import BrightnessController
 from radar_data_collector import RadarDataCollector
 from sliding_average import SlidingAverage
+from mpv import MPVController
 
+
+VIDEO_FILEPATH = "/home/tami/videos/head_on_floor_1920x1080.mp4"
 
 class Controller():
     @staticmethod
     def _dist(x, y):
         return round((x**2 + y**2)**0.5, 2)
 
-    def __init__(self, uartdev, ws, dmin, dmax, verbose=True):
+    def __init__(self, uartdev, ws, dmin, dmax, screen_bus=None, verbose=True):
         if dmin >= dmax:
             raise Exception("Minimum distance must be less than maximum")
 
+        if screen_bus is None:
+            self.br_ctl = None
+        else:
+            self.br_ctl = BrightnessController(screen_bus)
+
         self.rdc = RadarDataCollector(uartdev)
+
+        self.mpv_ctl = MPVController()
+        self.mpv_ctl.set_property("loop-file", "inf")
+        self.mpv_ctl.clear()
+        self.mpv_ctl.load_file(VIDEO_FILEPATH)
 
         self._ndec = 2
 
@@ -89,6 +103,15 @@ class Controller():
             self.b = 1.
         else:
             self.b = round(1 - ((self.d-self._dmin) / self._drange), self._ndec)
+
+        f = 50
+        if self.br_ctl is None:
+            b = int(self.b * f) - f
+            self.mpv_ctl.set_brightness(b, osd=True)
+        else:
+            b = int(self.b * f) + (100 - f)
+            self.br_ctl.set(b)
+            self.mpv_ctl.show_text(f"{b: 4}%")
  
     def start(self):
         self.rdc.start()

@@ -265,6 +265,55 @@ class LD2450():
 
         self._execute_cmd(cmd_word, cmd_value, reverse_value=False)
 
+    def show_info(self):
+        firmware_version = self.get_firmware_version()
+
+        mac_address = self.get_mac_address()
+        if mac_address:
+            bl_state = "ON"
+        else:
+            mac_address = "---"
+            bl_state = "OFF"
+
+        tracking_mode = self.get_tracking_mode()
+        if tracking_mode == 1:
+            mt_state = "OFF"
+        else:
+            mt_state = "ON"
+
+        zone_filtering = self.get_zone_filtering()
+
+        print(f"Firmware version: {firmware_version}")
+        print(f"Bluetooth: {bl_state} (MAC address: {mac_address})")
+        print(f"Multi tracking: {mt_state}")
+        print(f"Zone filtering: {zone_filtering}")
+
+    def show_data(self, n=None):
+        td = timedelta(seconds=1)
+
+        dt_end = datetime.now() + td
+        i = 0
+        c = 0
+        while True:
+            if (n is not None) and (c > n):
+                break
+
+            data = self.get_frame()
+            if data is None:
+                continue
+
+            dt = datetime.now()
+            if dt > dt_end:
+                dt_end = dt + td
+                i = 0
+                print()
+
+            i += 1
+            c += 1
+            
+            x1,y1,x2,y2,x3,y3 = data
+            print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {r.in_waiting:5} | sample: {i:5}")
+
     def test(self):
         l1 = []
         l2 = []
@@ -291,8 +340,6 @@ class LD2450():
     def get_frame(self, raw=False, full=False):
         res = self._ser.read_until(self.DATA_EOF)
 
-        #print(len(res), self.in_waiting)
-        
         if res[-30:-26] != self.DATA_HEADER:
             print("Invalid data header")
             return
@@ -387,46 +434,8 @@ if __name__ == "__main__":
     ##########
 
     if cmd == 'info':
-        firmware_version = r.get_firmware_version()
-        if bl == 1:
-            bl_state = "ON"
-            mac_address = r.get_mac_address()
-        else:
-            bl_state = "OFF"
-            mac_address = "---"
-
-        if mt == 1:
-            mt_state = "ON"
-        else:
-            mt_state = "OFF"
-
-        zone_filtering = r.get_zone_filtering()
-
-        print(f"Firmware version: {firmware_version}")
-        print(f"Bluetooth: {bl_state} (MAC address: {mac_address})")
-        print(f"Multi tracking: {mt_state}")
-        print(f"Zone filtering: {zone_filtering}")
-
+        r.show_info()
     elif cmd == 'data':
-        td = timedelta(seconds=1)
-
-        dt_end = datetime.now() + td
-        i = 0
-        while True:
-            data = r.get_frame()
-            if data is None:
-                continue
-
-            dt = datetime.now()
-            if dt > dt_end:
-                dt_end = dt + td
-                i = 0
-                print()
-
-            i += 1
-            
-            x1,y1,x2,y2,x3,y3 = data
-            print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {r.in_waiting:5} | sample: {i:5}")
-
+        r.show_data()
     elif cmd == 'test':
         r.test()
