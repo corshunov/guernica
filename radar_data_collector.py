@@ -14,11 +14,13 @@ class RadarDataCollector(threading.Thread):
         self.default_bluetooth = default_bluetooth
         self.default_multi_tracking = default_multi_tracking
 
-        self.queue = queue.Queue()
+        self.queue = queue.Queue(maxsize=1000)
 
-        self.radar = None
+        self.radar = self._get_radar()
 
-    def _init_radar(self):
+        self._active = True
+
+    def _get_radar(self):
         r = LD2450(self.uartdev)
 
         if self.default_bluetooth:
@@ -33,46 +35,77 @@ class RadarDataCollector(threading.Thread):
         
         r.set_zone_filtering(mode=0)
 
-        self.radar = r
-        print("Radar UP.")
+        return r
+
+    def _collect_data(self):
+        self.radar.clean()
+
+        #i = 0
+        first_time = True
+        while True:
+            if not self._active:
+                print("Radar DOWN.")
+                break
+
+            data = self.radar.get_frame()
+            if first_time:
+                print("Radar UP.")
+                first_time = False
+            
+            if data is None:
+                continue
+
+            #if i < 50:
+                #i += 1
+                #continue 
+
+            try:
+                #self.queue.put_nowait(data)
+                self.queue.put(data, timeout=0.01)
+            except:
+                print("Queue is full, skipping frame")
 
     @property
     def active(self):
-        return self.radar is not None
+        return self._active
 
+    @active.setter
+    def active(self, f):
+        if isinstance(f, bool):
+            self._active = f
+        else:
+            raise Exception("Invalid argument")
+
+    @property
     def qsize(self):
         return self.queue.qsize()
 
+    @property
     def empty(self):
         return self.queue.empty()
 
     def get(self):
-        return self.queue.get(timeout=0.01)
+        try:
+            #return self.queue.get_nowait()
+            return self.queue.get(timeout=0.01)
+        except:
+            return None
 
     def run(self):
         while True:
-            try:
-                self._init_radar()
-
-                i = 0
-                while True:
-                    data = self.radar.get_frame()
-                    if data is None:
-                        continue
-
-                    if i < 50:
-                        i += 1
-                        continue 
-
-                    self.queue.put(data)
-            except:
-                if self.active:
-                   self.radar = None
-                   print("Radar DOWN.")
-                else:
-                   print("Failed to init radar")
-
+            if not self._active:
                 time.sleep(1)
+                continue
+
+            try:
+                self._collect_data()
+            except:
+                print("Problem with radar")
+
+                try:
+                    self.radar = self._get_radar()
+                except:
+                    time.sleep(1)
 
 if __name__ == "__main__":
     import sys
@@ -86,7 +119,10 @@ if __name__ == "__main__":
     rdc = RadarDataCollector(uartdev)
     rdc.start()
 
-    while True:
-        if not rdc.empty():
-            s = rdc.get()
-            print(f"Queue: {rdc.qsize():5}, IN waiting: {rdc.radar.in_waiting:5}: {s}")
+    try:
+        while True:
+            if not rdc.empty:
+                s = rdc.get()
+                print(f"Queue: {rdc.qsize:5}, IN waiting: {rdc.radar.in_waiting:5}: {s}")
+    except KeyboardInterrupt:
+        print("\nExiting...\n")

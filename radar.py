@@ -33,12 +33,16 @@ class LD2450():
         return not flag
 
     def __init__(self, uartdev, verbose=False):
+        self.uartdev = uartdev
+        self.verbose = verbose
+
+        self._ser = self._get_serial()
+
+    def _get_serial(self):
         try:
-            self._ser = serial.Serial(uartdev, 256000, timeout=1)
+            return serial.Serial(self.uartdev, 256000, timeout=1)
         except:
             raise Exception(f"Failed to open UART device '{uartdev}'.") from None
-
-        self.verbose = verbose
 
     def __del__(self):
         try:
@@ -93,33 +97,40 @@ class LD2450():
     def _execute_cmd(self, cmd_word, cmd_value, reverse_value=True):
         cmd_word_str = self.bs2str(cmd_word)
 
-        n = 10
-        for _ in range(n):
-            try:
-                self._start_configuration()
-                break
-            except:
-                pass
-        else:
-            raise Exception("Failed to start configuration while executing cmd '{cmd_word_str}'.")
+        n = 4
+        for l in range(n):
+            for i in range(n):
+                try:
+                    self._start_configuration()
+                    break
+                except Exception as e:
+                    print(f"{l+1}.{i+1}) Failed to start configuration\n{e}")
+            else:
+                raise Exception(f"{l+1}) Failed to start configuration while executing cmd '{cmd_word_str}'.")
 
-        for _ in range(n):
-            try:
-                res = self._send_cmd(cmd_word, cmd_value, reverse_value)
-                break
-            except:
-                pass
+            for i in range(n):
+                try:
+                    res = self._send_cmd(cmd_word, cmd_value, reverse_value)
+                    break
+                except Exception as e:
+                    print(f"{l+1}.{i+1}) Failed to execute cmd '{cmd_word_str}'\n{e}")
+            else:
+                print(f"{l+1}) Failed to execute cmd '{cmd_word_str}'.")
+                continue
+
+            for i in range(n):
+                try:
+                    self._end_configuration()
+                    break
+                except Exception as e:
+                    print(f"{l+1}.{i+1}) Failed to end configuration\n{e}")
+            else:
+                print(f"{l+1}) Failed to end configuration while executing cmd '{cmd_word_str}'.")
+                continue
+
+            break
         else:
             raise Exception(f"Failed to execute cmd '{cmd_word_str}'.")
-
-        for _ in range(n):
-            try:
-                self._end_configuration()
-                break
-            except:
-                pass
-        else:
-            raise Exception("Failed to end configuration while executing cmd '{cmd_word_str}'.")
 
         return res
 
@@ -142,6 +153,8 @@ class LD2450():
         cmd_value = []
         self._execute_cmd(cmd_word, cmd_value)
         time.sleep(3)
+
+        self._ser = self._get_serial()
 
     def restore_factory_settings(self, restart=False):
         # Baudrate: 256000.
@@ -181,6 +194,19 @@ class LD2450():
 
         mac_address = self.bs2str(res[6:12])
         return mac_address
+
+    def get_bluetooth_state(self):
+        # This method is not native for radar!
+
+        # Bluetooth states:
+        # True - On
+        # False - Off
+
+        mac_address = self.get_mac_address()
+        if len(mac_address) != 17:
+            return False
+        else:
+            return True
 
     def set_bluetooth_on(self, restart=False):
         cmd_word = [0x00, 0xA4]
@@ -268,8 +294,9 @@ class LD2450():
     def show_info(self):
         firmware_version = self.get_firmware_version()
 
-        mac_address = self.get_mac_address()
-        if mac_address:
+        bl_state = self.get_bluetooth_state()
+        if bl_state:
+            mac_address = self.get_mac_address()
             bl_state = "ON"
         else:
             mac_address = "---"
@@ -283,43 +310,18 @@ class LD2450():
 
         zone_filtering = self.get_zone_filtering()
 
+        print(f"UART device: {self.uartdev}")
         print(f"Firmware version: {firmware_version}")
         print(f"Bluetooth: {bl_state} (MAC address: {mac_address})")
         print(f"Multi tracking: {mt_state}")
         print(f"Zone filtering: {zone_filtering}")
 
-    def show_data(self, n=None):
-        td = timedelta(seconds=1)
-
-        dt_end = datetime.now() + td
-        i = 0
-        c = 0
-        while True:
-            if (n is not None) and (c > n):
-                break
-
-            data = self.get_frame()
-            if data is None:
-                continue
-
-            dt = datetime.now()
-            if dt > dt_end:
-                dt_end = dt + td
-                i = 0
-                print()
-
-            i += 1
-            c += 1
-            
-            x1,y1,x2,y2,x3,y3 = data
-            print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {r.in_waiting:5} | sample: {i:5}")
-
-    def test(self):
+    def test(self, n=200):
         l1 = []
         l2 = []
         l3 = []
         
-        for i in range(200):
+        for i in range(n):
             print(i)
         
             firmware_version = self.get_firmware_version()
@@ -331,8 +333,12 @@ class LD2450():
             l3.append(tracking_mode_index)
         
         print()
-        for i in [l1, l2, l3]:
-            print(sorted(set(i)))
+        print(f"Firmware version: {sorted(set(l1))}")
+        print(f"MAC address: {sorted(set(l2))}")
+        print(f"Tracking mode: {sorted(set(l3))}")
+
+    def clean(self):
+        self._ser.reset_input_buffer()
 
     def get_all(self):
         return self._ser.read(size=self.in_waiting)
@@ -365,6 +371,35 @@ class LD2450():
                 data.extend([s,d])
         
         return data
+
+    def show_data(self, n=None, clean=True):
+        if clean:
+            self.clean()
+
+        td = timedelta(seconds=1)
+
+        dt_end = datetime.now() + td
+        i = 0
+        c = 0
+        while True:
+            if (n is not None) and (c > n):
+                break
+
+            data = self.get_frame()
+            if data is None:
+                continue
+
+            dt = datetime.now()
+            if dt > dt_end:
+                dt_end = dt + td
+                i = 0
+                print()
+
+            i += 1
+            c += 1
+            
+            x1,y1,x2,y2,x3,y3 = data
+            print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {self.in_waiting:5} | sample: {i:5}")
 
 if __name__ == "__main__":
     import sys
@@ -435,7 +470,10 @@ if __name__ == "__main__":
 
     if cmd == 'info':
         r.show_info()
-    elif cmd == 'data':
-        r.show_data()
     elif cmd == 'test':
         r.test()
+    elif cmd == 'data':
+        try:
+            r.show_data()
+        except KeyboardInterrupt:
+            print("\nExiting...\n")

@@ -24,6 +24,22 @@ class BrightnessController():
             bus.write_i2c_block_data(self.ADDRESS, self.REGISTER, message)
 
 if __name__ == "__main__":
+    import sys
+
+    try:
+        bus_num = sys.argv[1]
+    except:
+        print("No argument for I2C bus number provided")
+        sys.exit(1)
+
+    try:
+        bus_num = int(bus_num)
+        if bus_num < 0:
+            raise Exception
+    except:
+        print("I2C bus number argument must be integer no less than 0")
+        sys.exit(1)
+
     ctl = BrightnessController(bus_num=2)
     while True:
         try:
