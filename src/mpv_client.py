@@ -4,7 +4,7 @@ import socket
 import time
 
 
-class MPVController():
+class MPVClient():
     DEFAULT_SOCKET_PATH = "/tmp/mpvsocket"
 
     @staticmethod
@@ -49,6 +49,7 @@ class MPVController():
 
         while True:
             res_b = self.socket.recv(4096)
+            print(lenn(res_b))
             #print(res_b)
             for i_res_b in res_b.split(b'\n'):
                 if not i_res_b:
@@ -70,8 +71,11 @@ class MPVController():
         cmd = ["stop"]
         return self._send_json(cmd)
 
-    def load_file(self, path):
-        cmd = ["loadfile", str(path), "replace"]
+    def load_file(self, path, replace=True):
+        if replace:
+            cmd = ["loadfile", str(path), "replace"]
+        else:
+            cmd = ["loadfile", str(path)]
         return self._send_json(cmd)
 
     def seek(self, pos, pause=True):
@@ -88,16 +92,10 @@ class MPVController():
     def pause(self):
         return self.set_property("pause", True)
 
-    def set_brightness(self, value, osd=False):
+    def set_drm_brightness(self, value, osd=False):
         v = max(-100, min(100, value))
+        v = int((v / 100.) * 65535)
         if osd:
-            self.show_text(f"{v: 4}%")
+            self.show_text(f"{value: 4}% (gamma {v: 7})")
 
-        return self.set_property("brightness", v)
-
-    def set_volume(self, value, osd=False):
-        v = max(0, min(100, value))
-        if osd:
-            self.show_text(f"{v: 4}%")
-
-        return self.set_property("volume", v)
+        return self.set_property("drm-brightness", v)

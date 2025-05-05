@@ -1,15 +1,17 @@
 #!/bin/sh
 
 mpv \
-    "/home/tami/videos/video.mp4" \
+    "/home/tami/videos/head_on_floor_1920x1080.mp4" \
     --loop-file=inf \
-    --audio-device=alsa/hdmi:CARD=vc4hdmi \
+    --aid=no \
     --vo=gpu \
     --hwdec=v4l2m2m \
     --drm-draw-plane=overlay \
     --drm-drmprime-video-plane=primary \
     --input-ipc-server=/tmp/mpvsocket \
-    --osc=no \
-    --idle=yes \
-    --keep-open=always \
+    --osd-level=0 \
     -v \
+
+    #--audio-device=alsa/hdmi:CARD=vc4hdmi \
+    #--idle=yes \
+    #--keep-open=always \

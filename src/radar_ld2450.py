@@ -104,18 +104,18 @@ class LD2450():
                     self._start_configuration()
                     break
                 except Exception as e:
-                    print(f"{l+1}.{i+1}) Failed to start configuration\n{e}")
+                    print(f"Failed to start configuration\n{e}")
             else:
-                raise Exception(f"{l+1}) Failed to start configuration while executing cmd '{cmd_word_str}'.")
+                raise Exception(f"Failed to start configuration while executing cmd '{cmd_word_str}'.")
 
             for i in range(n):
                 try:
                     res = self._send_cmd(cmd_word, cmd_value, reverse_value)
                     break
                 except Exception as e:
-                    print(f"{l+1}.{i+1}) Failed to execute cmd '{cmd_word_str}'\n{e}")
+                    print(f"Failed to execute cmd '{cmd_word_str}'\n{e}")
             else:
-                print(f"{l+1}) Failed to execute cmd '{cmd_word_str}'.")
+                print(f"Failed to execute cmd '{cmd_word_str}'.")
                 continue
 
             for i in range(n):
@@ -123,9 +123,9 @@ class LD2450():
                     self._end_configuration()
                     break
                 except Exception as e:
-                    print(f"{l+1}.{i+1}) Failed to end configuration\n{e}")
+                    print(f"Failed to end configuration\n{e}")
             else:
-                print(f"{l+1}) Failed to end configuration while executing cmd '{cmd_word_str}'.")
+                print(f"Failed to end configuration while executing cmd '{cmd_word_str}'.")
                 continue
 
             break
@@ -337,11 +337,11 @@ class LD2450():
         print(f"MAC address: {sorted(set(l2))}")
         print(f"Tracking mode: {sorted(set(l3))}")
 
-    def clean(self):
-        self._ser.reset_input_buffer()
-
-    def get_all(self):
-        return self._ser.read(size=self.in_waiting)
+    def clean(self, ret=False):
+        if ret:
+            return self._ser.read(size=self.in_waiting)
+        else:
+            self._ser.reset_input_buffer()
 
     def get_frame(self, raw=False, full=False):
         res = self._ser.read_until(self.DATA_EOF)
@@ -363,19 +363,21 @@ class LD2450():
 
             x = self._convert_data_int16(c[0:2], signed=True)
             y = self._convert_data_int16(c[2:4], signed=True)
-            data.extend([x,y])
+            if (x != 0) and (y != 0):
+                if full:
+                    s = self._convert_data_int16(c[4:6], signed=True)
+                    d = self._convert_data_int16(c[4:6], signed=False)
+                    idata = (x,y,s,d)
+                else:
+                    idata = (x,y)
 
-            if full:
-                s = self._convert_data_int16(c[4:6], signed=True)
-                d = self._convert_data_int16(c[4:6], signed=False)
-                data.extend([s,d])
-        
+                data.append(idata)
+
         return data
 
     def show_data(self, n=None, clean=True):
         if clean:
-            #self.clean()
-            self.get_all()
+            self.clean(ret=True)
 
         td = timedelta(seconds=1)
 
@@ -399,7 +401,7 @@ class LD2450():
             i += 1
             c += 1
             
-            x1,y1,x2,y2,x3,y3 = data
+            (x1,y1),(x2,y2),(x3,y3) = data
             print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {self.in_waiting:5} | sample: {i:5}")
 
 if __name__ == "__main__":
