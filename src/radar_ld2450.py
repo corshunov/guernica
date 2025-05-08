@@ -1,7 +1,7 @@
+import math
 from datetime import datetime, timedelta
 import serial
 import time
-
 
 
 class LD2450():
@@ -31,6 +31,14 @@ class LD2450():
     def _is_res_ok(res):
         flag = int.from_bytes(res[4:6], byteorder='little')
         return not flag
+
+    @staticmethod
+    def distance(t):
+        return math.sqrt(t[0]**2 + t[1]**2)
+    
+    @staticmethod
+    def angle(t):
+        return math.atan(t[0]/t[1])
 
     def __init__(self, uartdev, verbose=False):
         self.uartdev = uartdev

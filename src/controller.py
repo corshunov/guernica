@@ -1,10 +1,21 @@
+from datetime import datetime
 import math
+import random
 import time
 
 from mpv_client import MPVClient
 from radar_ld2450 import LD2450
 from rpi_hardware_pwm import HardwarePWM
+import audio
 
+
+def clamp(v, low, high):
+    return max(low, min(high, v))
+
+def to_linear(v, low, high, begin, end):
+    v = clamp(v, low, high)
+    v = (v - low) / (high - low) * (end - begin) + begin
+    return v
 
 class Controller():
     DMIN = 500
@@ -14,86 +25,108 @@ class Controller():
     BRDELTA = 1000
     PWMMAX = 2290
     PWMMIN = 580
+    PAUSEMIN = 4
+    PAUSEMAX = 8
 
-    @staticmethod
-    def distance(t):
-        return math.sqrt(t[0]**2 + t[1]**2)
-    
-    @staticmethod
-    def angle(t):
-        return math.atan(t[0]/t[1])
-
-    @staticmethod
-    def clamp(v, low, high):
-        return max(low, min(high, v))
-
-    @staticmethod
-    def pulse2pwm(pulse):
-        pwm = pulse * 100 / 20000
-        return pwm
-
-    @classmethod
-    def to_linear(cls, v, low, high, begin, end):
-        v = cls.clamp(v, low, high)
-        v = (v - low) / (high - low) * (end - begin) + begin
-        return v
-
-    @classmethod
-    def dist2br(cls, d):
-        br = int(cls.to_linear(d, self.DMIN, self.DMAX, self.BRMAX, self.BRMIN))
-        return br
-
-    def __init__(self, uartdev, verbose=True):
-        self._uartdev = uartdev
-        self._verbose = verbose
-
-        self._drange = self._dmax - self._dmin
-
-        self.radar = self._get_radar()
+    def __init__(self, uartdev):
+        self.radar = self._init_radar(uartdev)
         self.mpv = MPVController()
+        self.pwm = HardwarePWM(pwm_channel=0, hz=50, chip=0)
 
-        self.pwm = HardwarePWM(pwm_channel=0,hz=50,chip=0)
-
-    def _get_radar(self):
-        r = LD2450(self._uartdev)
+    def _init_radar(self, uartdev):
+        r = LD2450(uartdev)
         r.set_bluetooth_off(restart=True)
         r.set_multi_tracking()
         r.set_zone_filtering(mode=0)
         return r
 
     def start(self):
+        distance = self.DMAX
+        angle = 0
         br = 0
+        audio_state = 0
         while True:
             data = self.get_frame()
             if data is None:
                 continue
 
-            distance_angle_list = list(map(lambda t: (self.distance(t), self.angle(t)), data))
-            print(distance_angle_list)
+            dt = datetime.now()
+
+            distance_angle_list = list(
+                map(lambda t: (self.radar.distance(t), self.radar.angle(t)), data))
+
+            human_present = False
             if distance_angle_list:
                 distance, angle = min(distance_angle_list, key=lambda t: t[0])
+                if distance < self.DMAX:
+                    human_present = True
 
-                # ==========
+            if not human_present:
+                distance = self.DMAX
+                # angle remains the same
 
-                br_prev = br
-                br_new = self.dist2br(distance)
-                br_diff = cls.clamp(br_new - br_prev, -self.BRDELTA, self.BRDELTA)
-                br += br_diff
+            # ==========
+            # Brightness
 
-                self.mpv.set_drm_brightness(br, osd=True)
+            br_prev = br
+            br_new = int(
+                to_linear(distance, self.DMIN, self.DMAX, self.BRMAX, self.BRMIN))
+            br_diff = clamp(br_new - br_prev, -self.BRDELTA, self.BRDELTA)
+            br += br_diff
 
-                # ==========
+            self.mpv.set_drm_brightness(br, osd=True)
 
-                pulse = self.to_linear(angle, -math.pi/2, math.pi/2, self.PWMMAX, self.PWMMIN)
-                p = self.pulse_to_pwm(pulse)
+            # =====
+            # Servo
+
+            if human_present:
+                pulse = to_linear(angle, -math.pi/2, math.pi/2, self.PWMMAX, self.PWMMIN)
+                p = pulse * 100 / 20000
                 self.pwm.change_duty_cycle(p)
+            else:
+                # TODO
+                # If no human present, still output PWM signal during 1 second.
+                # After, do not output PWM signal.
 
-                # ==========
+            # =====
+            # Audio
 
-                if self.verbose:
-                    print(f"IN: {self.radar.in_waiting:7} | "
-                          f"Dist: {distance:7} | Brightness: {br:7} | "
-                          f"Angle: {angle:7} | PWM: {p:7}")
+            if audio_state == 0: # not playing
+                if human_present:
+                    audio_files = audio.get_files()
+                    audio_files = random.shuffle(audio_files)
+                    path = audio_files.pop()
+                    audio_proc = audio.play(path)
+                    audio_state = 1
+            elif audio_state == 1: # playing audio file
+                if audio_proc.poll() is not None:
+                    if human_present:
+                        if len(audio_files) != 0:
+                            pause_end_dt = dt + random.randint(self.PAUSEMIN, self.PAUSEMAX)
+                            audio_state = 2
+                        else:
+                             audio_state = 3
+                    else:
+                        audio_state = 0
+            elif audio_state == 2: # paused (there is at least 1 audio file left)
+                if human_present:
+                    if dt > pause_end_dt:
+                        path = audio_files.pop()
+                        audio_proc = audio.play(path)
+                        audio_state = 1
+                else:
+                    audio_state = 0
+            elif audio_state == 3: # played all audio files
+                if not human_present:
+                    audio_state = 0
+
+            # ==========
+
+            print(f"IN: {self.radar.in_waiting:7} | "
+                  f"Human: {human_present:<7} | "
+                  f"Distance: {distance:7} | Brightness: {br:7} | "
+                  f"Angle: {angle:7} | PWM: {p:7} | "
+                  f"Audio state: {audio_state:3}")
 
 if __name__ == "__main__":
     import sys

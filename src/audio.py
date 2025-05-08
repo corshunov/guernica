@@ -1,11 +1,13 @@
 from pathlib import Path
 import subprocess
 
+
 def get_files(path):
-    return sorted([i for i in Path(path).iterdir() \
+    p = Path("/home/tami/audio")
+    return sorted([i for i in p.iterdir() \
         if (i.is_file() and i.suffix == ".wav")])
 
-def play_audio(path):
+def play(path):
     return subprocess.Popen(['aplay', '-Dhdmi:CARD=vc4hdmi', path])
 
 if __name__ == "__main__":
@@ -18,7 +20,7 @@ if __name__ == "__main__":
         print("No argument for audio file provided")
         sys.exit(1)
 
-    p = play_audio(path)
+    p = play(path)
     while True:
         print('Playing...')
         time.sleep(1)
