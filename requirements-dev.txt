@@ -1,4 +1,5 @@
 jupyter
 matplotlib
 pyserial
+rpi_hardware_pwm
 smbus2

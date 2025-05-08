@@ -400,9 +400,10 @@ class LD2450():
 
             i += 1
             c += 1
-            
-            (x1,y1),(x2,y2),(x3,y3) = data
-            print(f"{x1:5} {y1:5} | {x2:5} {y2:5} | {x3:5} {y3:5} | IN: {self.in_waiting:5} | sample: {i:5}")
+
+            text = f"Sample: {i:5} | IN: {self.in_waiting:5} | "
+            text += " | ".join([f"{x:5} {y:5}" for (x,y) in data])
+            print(text)
 
 if __name__ == "__main__":
     import sys

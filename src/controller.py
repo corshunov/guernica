@@ -1,141 +1,99 @@
+import math
 import time
 
-from brightness_controller import BrightnessController
-from radar_data_collector import RadarDataCollector
-from sliding_average import SlidingAverage
-from mpv import MPVController
+from mpv_client import MPVClient
+from radar_ld2450 import LD2450
+from rpi_hardware_pwm import HardwarePWM
 
-
-VIDEO_FILEPATH = "/home/tami/videos/head_on_floor_1920x1080.mp4"
 
 class Controller():
+    DMIN = 500
+    DMAX = 3000
+    BRMIN = 15000
+    BRMAX = 65535
+    BRDELTA = 1000
+    PWMMAX = 2290
+    PWMMIN = 580
+
     @staticmethod
-    def _dist(x, y):
-        return round((x**2 + y**2)**0.5, 2)
+    def distance(t):
+        return math.sqrt(t[0]**2 + t[1]**2)
+    
+    @staticmethod
+    def angle(t):
+        return math.atan(t[0]/t[1])
 
-    def __init__(self, uartdev, ws, dmin, dmax, screen_bus=None, verbose=True):
-        if dmin >= dmax:
-            raise Exception("Minimum distance must be less than maximum")
+    @staticmethod
+    def clamp(v, low, high):
+        return max(low, min(high, v))
 
-        if screen_bus is None:
-            self.br_ctl = None
-        else:
-            self.br_ctl = BrightnessController(screen_bus)
+    @staticmethod
+    def pulse2pwm(pulse):
+        pwm = pulse * 100 / 20000
+        return pwm
 
-        self.rdc = RadarDataCollector(uartdev)
+    @classmethod
+    def to_linear(cls, v, low, high, begin, end):
+        v = cls.clamp(v, low, high)
+        v = (v - low) / (high - low) * (end - begin) + begin
+        return v
 
-        self.mpv_ctl = MPVController()
-        self.mpv_ctl.set_property("loop-file", "inf")
-        self.mpv_ctl.clear()
-        self.mpv_ctl.load_file(VIDEO_FILEPATH)
+    @classmethod
+    def dist2br(cls, d):
+        br = int(cls.to_linear(d, self.DMIN, self.DMAX, self.BRMAX, self.BRMIN))
+        return br
 
-        self._ndec = 2
+    def __init__(self, uartdev, verbose=True):
+        self._uartdev = uartdev
+        self._verbose = verbose
 
-        self._x1avg = SlidingAverage(ws, self._ndec)
-        self._y1avg = SlidingAverage(ws, self._ndec)
-
-        self._x2avg = SlidingAverage(ws, self._ndec)
-        self._y2avg = SlidingAverage(ws, self._ndec)
-
-        self._x3avg = SlidingAverage(ws, self._ndec)
-        self._y3avg = SlidingAverage(ws, self._ndec)
-
-        self._dmin = dmin
-        self._dmax = dmax
         self._drange = self._dmax - self._dmin
-        self._dout = self._dmax * 1.2
 
-        self.verbose = verbose
+        self.radar = self._get_radar()
+        self.mpv = MPVController()
 
-        self.set_no_targets()
+        self.pwm = HardwarePWM(pwm_channel=0,hz=50,chip=0)
 
-        self.b = 0.
+    def _get_radar(self):
+        r = LD2450(self._uartdev)
+        r.set_bluetooth_off(restart=True)
+        r.set_multi_tracking()
+        r.set_zone_filtering(mode=0)
+        return r
 
-    def set_no_targets(self):
-        self.x1 = 0.
-        self.y1 = 0.
-        self.d1 = self._dout
-
-        self.x2 = 0.
-        self.y2 = 0.
-        self.d2 = self._dout
-
-        self.x3 = 0.
-        self.y3 = 0.
-        self.d3 = self._dout
-
-    def update_targets(self):
-        x1,y1,x2,y2,x3,y3 = self.rdc.get()
-
-        if (x1 == 0) and (y1 == 0):
-            self.x1 = 0.
-            self.y1 = 0.
-            self.d1 = self._dout
-        else:
-            self.x1 = self._x1avg.add(x1)
-            self.y1 = self._y1avg.add(y1)
-            self.d1 = self._dist(self.x1, self.y1)
- 
-        if (x2 == 0) and (y2 == 0):
-            self.x2 = 0.
-            self.y2 = 0.
-            self.d2 = self._dout
-        else:
-            self.x2 = self._x2avg.add(x2)
-            self.y2 = self._y2avg.add(y2)
-            self.d2 = self._dist(self.x2, self.y2)
-
-        if (x3 == 0) and (y3 == 0):
-            self.x3 = 0.
-            self.y3 = 0.
-            self.d3 = self._dout
-        else:
-            self.x3 = self._x3avg.add(x3)
-            self.y3 = self._y3avg.add(y3)
-            self.d3 = self._dist(self.x3, self.y3)
-
-    def update_brightness(self):
-        self.d = min([self.d1, self.d2, self.d3])
-        
-        if self.d >= self._dmax:
-            self.b = 0.
-        elif self.d <= self._dmin:
-            self.b = 1.
-        else:
-            self.b = round(1 - ((self.d-self._dmin) / self._drange), self._ndec)
-
-        f = 50
-        if self.br_ctl is None:
-            b = int(self.b * f) - f
-            self.mpv_ctl.set_brightness(b, osd=True)
-        else:
-            b = int(self.b * f) + (100 - f)
-            self.br_ctl.set(b)
-            self.mpv_ctl.show_text(f"{b: 4}%")
- 
     def start(self):
-        self.rdc.start()
-
+        br = 0
         while True:
-            in_waiting = "  -  "
-            if self.rdc.empty():
-                if self.rdc.active:
-                   continue
-                else:
-                   self.set_no_targets()
-                   time.sleep(1)
-                   continue
-            else:
-                self.update_targets()
-                in_waiting = f"{self.rdc.radar.in_waiting:5}"
+            data = self.get_frame()
+            if data is None:
+                continue
 
-            self.update_brightness()
+            distance_angle_list = list(map(lambda t: (self.distance(t), self.angle(t)), data))
+            print(distance_angle_list)
+            if distance_angle_list:
+                distance, angle = min(distance_angle_list, key=lambda t: t[0])
 
-            if self.verbose:
-                print(f"Q: {self.rdc.qsize(): 5} | IN: {in_waiting} | B: {self.b:7.2f} | D: {self.d:7.2f} | "
-                      f"{self.x1:7.1f} {self.y1:7.1f} | "
-                      f"{self.x2:7.1f} {self.y2:7.1f} | "
-                      f"{self.x3:7.1f} {self.y3:7.1f}")
+                # ==========
+
+                br_prev = br
+                br_new = self.dist2br(distance)
+                br_diff = cls.clamp(br_new - br_prev, -self.BRDELTA, self.BRDELTA)
+                br += br_diff
+
+                self.mpv.set_drm_brightness(br, osd=True)
+
+                # ==========
+
+                pulse = self.to_linear(angle, -math.pi/2, math.pi/2, self.PWMMAX, self.PWMMIN)
+                p = self.pulse_to_pwm(pulse)
+                self.pwm.change_duty_cycle(p)
+
+                # ==========
+
+                if self.verbose:
+                    print(f"IN: {self.radar.in_waiting:7} | "
+                          f"Dist: {distance:7} | Brightness: {br:7} | "
+                          f"Angle: {angle:7} | PWM: {p:7}")
 
 if __name__ == "__main__":
     import sys
@@ -146,47 +104,5 @@ if __name__ == "__main__":
         print("No argument for UART device provided")
         sys.exit(1)
 
-    try:
-        ws = sys.argv[2]
-    except:
-        print("No argument for window size provided")
-        sys.exit(1)
-
-    try:
-        ws = int(ws)
-        if ws <= 0:
-            raise Exception
-    except:
-        print("Window size must be integer greater than 0")
-        sys.exit(1)
-
-    try:
-        dmin = sys.argv[3]
-    except:
-        print("No argument for minimum distance provided")
-        sys.exit(1)
-
-    try:
-        dmin = int(dmin)
-        if dmin <= 0:
-            raise Exception
-    except:
-        print("Minimum distance must be integer greater than 0")
-        sys.exit(1)
-
-    try:
-        dmax = sys.argv[4]
-    except:
-        print("No argument for maximum distance provided")
-        sys.exit(1)
-
-    try:
-        dmax = int(dmax)
-        if dmax <= dmin:
-            raise Exception
-    except:
-        print("Maximum distance must be integer greater than minimum distance")
-        sys.exit(1)
-
-    ctl = Controller(uartdev, ws, dmin, dmax)
+    ctl = Controller(uartdev)
     ctl.start()
