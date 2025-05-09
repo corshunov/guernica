@@ -14,8 +14,9 @@ class Hand():
     CLOSE_V = 20
     OPEN_V = 80
 
-    def __init__(self, uartdev=None):
+    def __init__(self, uartdev=None, inverted=False):
         self._kit = ServoKit(channels=16)
+        self._inverted = inverted
 
         self._pos = [self.CLOSE_V] * self.N_FINGERS
         self.close()
@@ -29,6 +30,8 @@ class Hand():
 
     def _set_finger_pos(self, i, v):
         v = clamp(v, 0, 100)
+        if self._inverted:
+            v = 100 - v
         self._pos[i] = v
 
         if i == 0:
@@ -81,24 +84,29 @@ class Hand():
 if __name__ == "__main__":
     import sys
 
-    uartdev = ""
-    audio_path = ""
+    uartdev = "/dev/ttyS0"
+    audio_path = "/home/tami/audio/flower_sound_2.wav"
     ts_num_list = [
         # (ts, number)
         (2.3, 4),
-        (6.0, 1)
+        (6.0, 1),
+        (9.4, 2),
+        (13.4, 5),
+        (16.0, 3),
     ]
 
-    hand = Hand(uartdev)
+    hand = Hand(uartdev, inverted=True)
 
-    audio_proc = audio.play(path)
+    audio_proc = audio.play(audio_path)
     start_dt = datetime.now()
 
-    for ts, num in timestamps:
+    for ts, num in ts_num_list:
         ts_dt = start_dt + timedelta(seconds=ts)
         while True:
-            if datetime.now() > ts_dt:
-                print(ts, num)
+            dt = datetime.now()
+            print(dt)
+            if dt > ts_dt:
+                print(f"!!!!!!!!!!!!!!!!!!!!!!!! {ts}          {num}")
                 hand.show_number(num)
                 time.sleep(1.5)
                 hand.close()
