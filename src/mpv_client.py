@@ -47,17 +47,16 @@ class MPVClient():
 
         self.socket.send(cmd_b)
 
-        while True:
-            res_b = self.socket.recv(4096)
-            print(lenn(res_b))
-            #print(res_b)
-            for i_res_b in res_b.split(b'\n'):
-                if not i_res_b:
-                    continue
+        res_b = self.socket.recv(4096)
+        #print(len(res_b))
+        #print(res_b)
+        for i_res_b in res_b.split(b'\n'):
+            if not i_res_b:
+                continue
 
-                res_j = self._b2j(i_res_b)
-                if "request_id" in res_j and res_j["request_id"] == request_id:
-                    return res_j
+            res_j = self._b2j(i_res_b)
+            if "request_id" in res_j and res_j["request_id"] == request_id:
+                return res_j
 
     def get_property(self, name):
         cmd = ["get_property", name]
@@ -96,6 +95,13 @@ class MPVClient():
         v = max(-100, min(100, value))
         v = int((v / 100.) * 65535)
         if osd:
-            self.show_text(f"{value: 4}% (gamma {v: 7})")
+            self.show_text(f"drm-brightness: {value: 4}")
 
         return self.set_property("drm-brightness", v)
+
+    def set_x_overlay(self, overlay_name, x, osd=False):
+        if osd:
+            self.show_text(f"{overlay_name} X: {x: 4}")
+
+        cmd = ["vf-command", "all", f"x@overlay@{overlay_name}", str(x)]
+        return self._send_json(cmd)
