@@ -113,8 +113,8 @@ class Controller():
 
                 x = x_new
 
-            #if dt > next_blink_dt:
-                #blink = True
+            if dt > next_blink_dt:
+                blink = True
 
             if blink:
                 self.mpv.set_x_overlay('halflids', 400, osd=True)
@@ -130,9 +130,9 @@ class Controller():
                 time.sleep(0.2)
                 self.mpv.set_x_overlay('halflids', -2000, osd=True)
 
-                #delta = random.randint(5,10) 
-                delta = 3
-                next_blink_dt = dt + timedelta(seconds=delta)
+                #blink_delta = random.randint(5,10) 
+                blink_delta = 3
+                next_blink_dt = dt + timedelta(seconds=blink_delta)
 
             print(f"Blink: {'yes' if blink else 'no '} | Overlay X: {x:5}")
 
@@ -154,36 +154,37 @@ class Controller():
             # =====
             # Audio
 
-            #if audio_state == 0: # not playing
-            #    if human_present:
-            #        audio_files = audio.get_files()
-            #        audio_files = random.shuffle(audio_files)
-            #        path = audio_files.pop()
-            #        audio_proc = audio.play(path)
-            #        audio_state = 1
-            #elif audio_state == 1: # playing audio file
-            #    if audio_proc.poll() is not None:
-            #        if human_present:
-            #            if len(audio_files) != 0:
-            #                pause_end_dt = dt + random.randint(self.PAUSEMIN, self.PAUSEMAX)
-            #                audio_state = 2
-            #            else:
-            #                 audio_state = 3
-            #        else:
-            #            audio_state = 0
-            #elif audio_state == 2: # paused (there is at least 1 audio file left)
-            #    if human_present:
-            #        if dt > pause_end_dt:
-            #            path = audio_files.pop()
-            #            audio_proc = audio.play(path)
-            #            audio_state = 1
-            #    else:
-            #        audio_state = 0
-            #elif audio_state == 3: # played all audio files
-            #    if not human_present:
-            #        audio_state = 0
+            if audio_state == 0: # not playing
+                if human_present:
+                    audio_files = audio.get_files()
+                    random.shuffle(audio_files)
+                    path = audio_files.pop()
+                    audio_proc = audio.play(path)
+                    audio_state = 1
+            elif audio_state == 1: # playing audio file
+                if audio_proc.poll() is not None:
+                    if human_present:
+                        if len(audio_files) != 0:
+                            audio_delta = random.randint(self.PAUSEMIN, self.PAUSEMAX)
+                            pause_end_dt = dt + timedelta(seconds=audio_delta)
+                            audio_state = 2
+                        else:
+                             audio_state = 3
+                    else:
+                        audio_state = 0
+            elif audio_state == 2: # paused (there is at least 1 audio file left)
+                if human_present:
+                    if dt > pause_end_dt:
+                        path = audio_files.pop()
+                        audio_proc = audio.play(path)
+                        audio_state = 1
+                else:
+                    audio_state = 0
+            elif audio_state == 3: # played all audio files
+                if not human_present:
+                    audio_state = 0
 
-            # print(f"Audio state: {audio_state:3}")
+            print(f"Audio state: {audio_state:3}")
 
             # ==========
 
