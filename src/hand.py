@@ -1,20 +1,14 @@
-from datetime import datetime, timedelta
-import time
-
 from adafruit_servokit import ServoKit
 
-import audio
+import utils
 
-
-def clamp(v, low, high):
-    return max(low, min(high, v))
 
 class Hand():
     N_FINGERS = 5
     CLOSE_V = 20
     OPEN_V = 80
 
-    def __init__(self, uartdev=None, inverted=False):
+    def __init__(self, inverted=False):
         self._kit = ServoKit(channels=16)
         self._inverted = inverted
 
@@ -29,7 +23,7 @@ class Hand():
         return self._pos[i]
 
     def _set_finger_pos(self, i, v):
-        v = clamp(v, 0, 100)
+        v = utils.clamp(v, 0, 100)
         if self._inverted:
             v = 100 - v
         self._pos[i] = v
@@ -82,9 +76,12 @@ class Hand():
 
 
 if __name__ == "__main__":
+    from datetime import datetime, timedelta
     import sys
+    import time
 
-    uartdev = "/dev/ttyS0"
+    import audio
+
     audio_path = "/home/tami/audio/flower_sound_2.wav"
     ts_num_list = [
         # (ts, number)
@@ -95,7 +92,7 @@ if __name__ == "__main__":
         (16.0, 3),
     ]
 
-    hand = Hand(uartdev, inverted=True)
+    hand = Hand(inverted=True)
 
     audio_proc = audio.play(audio_path)
     start_dt = datetime.now()

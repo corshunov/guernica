@@ -1,0 +1,15 @@
+{
+    "radar": {
+        "uartdev": "/dev/ttyS0",
+        "min: 500,
+        "max: 3000
+    },
+    "audio": {
+        "directory": "audio",
+        "pause_min": 4,
+        "pause_max": 8
+    },
+    "hand": {
+        "inverted": false
+    }
+}

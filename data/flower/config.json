@@ -1,0 +1,11 @@
+{
+    "radar": {
+        "uartdev": "/dev/ttyS0",
+        "min: 500,
+        "max: 3000
+    },
+    "servo": {
+        "min": 580,
+        "max: 2290
+    }
+}

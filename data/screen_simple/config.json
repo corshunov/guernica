@@ -1,0 +1,17 @@
+{
+    "radar": {
+        "uartdev": "/dev/ttyS0",
+        "min: 500,
+        "max: 3000
+    },
+    "brightness": {
+        "min": 15000,
+        "max": 65535,
+        "delta": 1000
+    },
+    "audio": {
+        "directory": "audio",
+        "pause_min": 4,
+        "pause_max": 8
+    }
+}
