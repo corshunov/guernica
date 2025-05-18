@@ -3,18 +3,12 @@ import serial
 import utils
 
 
-class Eyes():
-    def __init__(self, uartdev, remote=True):
+class Baby():
+    def __init__(self, uartdev):
         self.uartdev = uartdev
         self._ser = self._get_serial()
 
-        if remote:
-            mode_cmd = b"remote"
-        else:
-            mode_cmd = b"local"
-        for _ in range(3):
-            self._ser.write(mode_cmd)
-            time.sleep(0.5)
+        self.x = 120
 
     def _get_serial(self):
         try:
@@ -28,17 +22,21 @@ class Eyes():
         except:
             pass
 
-    @property
-    def in_waiting(self):
-        return self._ser.in_waiting
-
     def blink(self):
-        self._ser.write(b"blink")
+        cmd = b"blink\n"
+        self._ser.write(cmd)
 
-    def set_angle(self, angle):
-        value = utils.clamp(angle, 70, 150)
-        value = str(value).encode()
-        self._ser.write(value)
+    @property
+    def x(self):
+        return self._x
+
+    @x.setter
+    def x(self, value):
+        value = utils.clamp(value, 80, 150)
+        cmd = f"{value}\n".encode()
+        self._ser.write(cmd)
+
+        self._x = value
 
 
 if __name__ == "__main__":
@@ -51,7 +49,7 @@ if __name__ == "__main__":
         print("No argument for UART device provided")
         sys.exit(1)
 
-    eyes = Eyes(uartdev)
+    baby = Baby(uartdev)
     for _ in range(5):
-        eyes.blink()
+        baby.blink()
         time.sleep(3)

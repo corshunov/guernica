@@ -17,9 +17,8 @@ class Hand():
 
     def _finger(self, i):
         return self._kit.servo[i]
-        #return self._kit.servo[i+11]
 
-    def _get_finger_pos(self, i):
+    def _finger_pos(self, i):
         return self._pos[i]
 
     def _set_finger_pos(self, i, v):
@@ -33,6 +32,12 @@ class Hand():
 
         angle = (100 - v) / 100 * 180
         self._finger(i).angle = int(angle)
+
+    def stop(self):
+        for i in range(self.N_FINGERS):
+            self._finger(i).angle = None
+
+        self.power_off()
 
     @property
     def pos(self):

@@ -5,8 +5,10 @@ import random
 import time
 
 import audio
+from baby import Baby
 from mpv_client import MPVClient
 from radar_ld2450 import LD2450
+from flower import Flower
 import utils
 
 
@@ -14,6 +16,10 @@ class ControllerBase():
     def __init__(self, cfg_path):
         self.error_log = Path.cwd() / "controller_error.log"
         self.configure(cfg_path)
+
+    def log(self, text):
+        with self.error_log.open("a") as f:
+            f.write(text)
 
     def configure(self, cfg_path):
         cfg = utils.load_json(cfg_path)
@@ -30,13 +36,13 @@ class ControllerBase():
         if self.flag_overlay:
             self.init_overlay()
 
-        self.flag_servo = "servo" in self.cfg
-        if self.flag_servo:
-            self.init_servo()
+        self.flag_flower = "flower" in self.cfg
+        if self.flag_flower:
+            self.init_flower()
 
-        self.flag_eyes = "eyes" in self.cfg
-        if self.flag_eyes:
-            self.init_eyes()
+        self.flag_baby = "baby" in self.cfg
+        if self.flag_baby:
+            self.init_baby()
 
         self.flag_hand = "hand" in self.cfg
         if self.flag_hand:
@@ -49,8 +55,8 @@ class ControllerBase():
     def init_radar(self):
         cfg = self.cfg['radar']
         self.RADAR_UARTDEV = cfg['uartdev']
-        self.RADAR_DISTANCE_MIN = cfg['min']
-        self.RADAR_DISTANCE_MAX = cfg['max']
+        self.RADAR_DISTANCE_MIN = cfg['distance_min']
+        self.RADAR_DISTANCE_MAX = cfg['distance_max']
 
         r = LD2450(self.RADAR_UARTDEV)
         r.set_bluetooth_off(restart=True)
@@ -63,6 +69,7 @@ class ControllerBase():
         self.BRIGHTNESS_MIN = cfg['min']
         self.BRIGHTNESS_MAX = cfg['max']
         self.BRIGHTNESS_DELTA = cfg['delta']
+        self.BRIGHTNESS_OSD = cfg['osd']
 
         self.mpv = MPVClient()
         self.brightness = self.BRIGHTNESS_MIN
@@ -74,12 +81,14 @@ class ControllerBase():
             return
 
         if self.dt > self.brightness_next_time_check_dt:
-            self.brightness_next_time_check_dt = self.dt + timedelta(seconds=1)
-
             remaining_time = float(self.mpv.get_property("time-remaining"))
-            if remaining_time < 2:
-                self.brightness_do_not_change_until_dt = self.dt + timedelta(seconds=3)
-                return
+            if remaining_time is not None:
+                self.brightness_next_time_check_dt = self.dt + timedelta(seconds=1)
+                if remaining_time < 2:
+                    self.brightness_do_not_change_until_dt = self.dt + timedelta(seconds=3)
+                    return
+            else:
+                self.log(f"{self.df}: failed to get property 'time-remaining' from MPV")
 
         if self.human_present:
             br_new = utils.to_linear(self.distance,
@@ -93,13 +102,12 @@ class ControllerBase():
                               -self.BRIGHTNESS_DELTA,
                               self.BRIGHTNESS_DELTA)
         self.brightness += br_diff
-        self.mpv.set_drm_brightness(self.brightness, osd=False)
+        self.mpv.set_drm_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
 
     def init_overlay(self):
         cfg = self.cfg['overlay']
         self.OVERLAY_X_MIN = cfg['x_min']
         self.OVERLAY_X_MAX = cfg['x_max']
-        self.OVERLAY_ANGLE_FACTOR = cfg['angle_factor']
         self.OVERLAY_BLINK_PAUSE_MIN = cfg['blink_pause_min']
         self.OVERLAY_BLINK_PAUSE_MAX = cfg['blink_pause_max']
 
@@ -111,8 +119,8 @@ class ControllerBase():
         if self.human_present:
             x_new = utils.to_linear(
                 self.angle,
-                -math.pi/2 * self.OVERLAY_ANGLE_FACTOR,
-                math.pi/2 * self.OVERLAY_ANGLE_FACTOR,
+                self.radar.ANGLE_MIN,
+                self.radar.ANGLE_MAX,
                 self.OVERLAY_X_MIN,
                 self.OVERLAY_X_MAX))
             x_new = int(x_new)
@@ -143,39 +151,62 @@ class ControllerBase():
                                                            self.OVERLAY_BLINK_PAUSE_MAX))
             self.overlay_next_blink_dt = self.dt + blink_delta
 
-    def init_servo(self):
-        cfg = self.cfg['servo']
-        self.SERVO_PWM_MIN = cfg['min']
-        self.SERVO_PWM_MAX = cfg['max']
+    def init_flower(self):
+        cfg = self.cfg['flower']
+        self.FLOWER_PWM_MIN = cfg['pwm_min']
+        self.FLOWER_PWM_MAX = cfg['pwm_max']
+        self.FLOWER_DUTY_CYCLE_DELTA = cfg['duty_cycle_delta']
 
-        self.servo = Servo(pwm_min=self.SERVO_PWM_MIN,
-                           pwm_max=self.SERVO_PWM_MAX)
-        self.servo_do_not_release_until_dt = datetime.now()
+        self.flower = Flower(pwm_min=self.FLOWER_PWM_MIN,
+                             pwm_max=self.FLOWER_PWM_MAX,
+                             initial_dc=0)
 
-    def process_servo(self):
+    def process_flower(self):
         if self.human_present:
-            self.servo.set_angle(self.angle)
-            self.servo_do_not_release_until_dt = self.dt + timedelta(seconds=1)
+            dc_new = utils.to_linear(self.distance,
+                                     self.RADAR_DISTANCE_MIN,
+                                     self.RADAR_DISTANCE_MAX,
+                                     0, 100))
         else:
-            if self.dt > self.servo_do_not_release_until_dt:
-                self.servo.release()
+            dc_new = 0
 
-    def init_eyes(self):
-        cfg = self.cfg['eyes']
-        self.EYES_UARTDEV = cfg['uartdev']
-        self.EYES_BLINK_PAUSE_MIN = cfg['blink_pause_min']
-        self.EYES_BLINK_PAUSE_MAX = cfg['blink_pause_max']
+        dc_diff = utils.clamp(dc_new - self.flower.dc,
+                              -self.FLOWER_DUTY_CYCLE_DELTA,
+                              self.FLOWER_DUTY_CYCLE_DELTA)
 
-        self.eyes = Eyes(self.EYES_UARTDEV, remote=True)
-        self.eyes_next_blink_dt = datetime.now()
+        self.flower.dc += dc_diff
 
-    def process_eyes(self):
-        if self.dt > self.eyes_next_blink_dt:
-            self.eyes.blink()
+    def init_baby(self):
+        cfg = self.cfg['baby']
+        self.BABY_UARTDEV = cfg['uartdev']
+        self.BABY_BLINK_PAUSE_MIN = cfg['blink_pause_min']
+        self.BABY_BLINK_PAUSE_MAX = cfg['blink_pause_max']
+        self.BABY_X_DELTA = cfg['x_delta']
 
-            blink_delta = timedelta(seconds=random.randint(self.EYES_BLINK_PAUSE_MIN,
-                                                       self.EYES_BLINK_PAUSE_MAX))
-            self.eyes_next_blink_dt = self.dt + blink_delta
+        self.baby = Baby(self.BABY_UARTDEV)
+        self.baby_next_blink_dt = datetime.now()
+
+    def process_baby(self):
+        if self.human_present:
+            x_new = utils.to_linear(
+                self.angle,
+                self.radar.ANGLE_MIN,
+                self.radar.ANGLE_MAX,
+                -100, 100)
+            x_new = int(x_new)
+
+            x_diff = utils.clamp(x_new - self.baby.x,
+                                 -self.BABY_X_DELTA,
+                                 self.BABY_X_DELTA)
+
+            self.baby.x += x_diff
+
+        if self.dt > self.baby_next_blink_dt:
+            self.baby.blink()
+
+            blink_delta = timedelta(seconds=random.randint(self.BABY_BLINK_PAUSE_MIN,
+                                                           self.BABY_BLINK_PAUSE_MAX))
+            self.baby_next_blink_dt = self.dt + blink_delta
 
     def init_audio(self):
         cfg = self.cfg['audio']
@@ -210,9 +241,9 @@ class ControllerBase():
         elif self.audio_state == 1: # playing audio file
             if self.audio_proc.poll() is not None:
                 if self.audio_proc.returncode != 0:
-                    with self.error_log.open("a") as f:
-                        f.write(f"{self.dt}: audio failed "
+                    log_text = (f"{self.dt}: audio failed "
                                 f"(return code {self.audio_proc.returncode})")
+                    self.log(log_text)
                     
                     self.audio_state = 0
                 elif self.human_present:
@@ -247,21 +278,22 @@ class ControllerBase():
         self.hand = Hand(inverted=self.HAND_INVERTED)
 
     def process_hand(self):
-        for ts, num in ts_num_list:
-            ts_dt = start_dt + timedelta(seconds=ts)
-            while True:
-                dt = datetime.now()
-                print(dt)
-                if dt > ts_dt:
-                    print(f"!!!!!!!!!!!!!!!!!!!!!!!! {ts}          {num}")
-                    hand.show_number(num)
-                    time.sleep(1.5)
-                    hand.close()
-                    break
+        pass
+        #for ts, num in ts_num_list:
+        #    ts_dt = start_dt + timedelta(seconds=ts)
+        #    while True:
+        #        dt = datetime.now()
+        #        print(dt)
+        #        if dt > ts_dt:
+        #            print(f"!!!!!!!!!!!!!!!!!!!!!!!! {ts}          {num}")
+        #            hand.show_number(num)
+        #            time.sleep(1.5)
+        #            hand.close()
+        #            break
 
-        while True:
-            if audio_proc.poll() is not None:
-                break
+        #while True:
+        #    if audio_proc.poll() is not None:
+        #        break
 
     def process(self):
         self.text = (f"IN: {self.radar.in_waiting:7}"
@@ -278,12 +310,12 @@ class ControllerBase():
             self.text += (f" | Overlay blink: {'yes' if self.overlay_blink else 'no '}"
                           f" | Overlay X: {self.overlay_x:5}")
 
-        if self.flag_servo:
-            self.process_servo()
-            self.text += f" | Servo: {self.pwm_value:7}"
+        if self.flag_flower:
+            self.process_flower()
+            self.text += f" | Flower: {self.pwm_value:7}"
 
-        if self.flag_eyes:
-            self.process_eyes()
+        if self.flag_baby:
+            self.process_baby()
 
         if self.flag_hand:
             self.process_hand()
@@ -301,9 +333,7 @@ class ControllerBase():
             data = self.radar.get_frame()
             if data is None:
                 if n_radar_failures >= 10:
-                    with self.error_log.open("a") as f:
-                        f.write(f"{self.dt}: radar failed - exiting"
-
+                    self.log(f"{self.dt}: radar failed - exiting")
                     sys.exit(1)
 
                 n_radar_failures += 1

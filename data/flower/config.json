@@ -1,11 +1,12 @@
 {
     "radar": {
         "uartdev": "/dev/ttyS0",
-        "min: 500,
-        "max: 3000
+        "distance_min: 500,
+        "distance_max: 3000
     },
-    "servo": {
-        "min": 580,
-        "max: 2290
+    "flower": {
+        "pwm_min": 580,
+        "pwm_max: 2290,
+        "duty_cycle_delta": 0.2
     }
 }

@@ -1,13 +1,14 @@
 {
     "radar": {
         "uartdev": "/dev/ttyS0",
-        "min: 500,
-        "max: 3000
+        "distance_min: 500,
+        "distance_max: 3000
     },
     "brightness": {
         "min": 15000,
         "max": 65535,
-        "delta": 1000
+        "delta": 200,
+        "osd": false
     },
     "audio": {
         "directory": "audio",

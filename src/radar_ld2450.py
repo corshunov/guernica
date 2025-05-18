@@ -11,6 +11,9 @@ class LD2450():
     DATA_HEADER = bytes([0xAA, 0xFF, 0x03, 0x00])
     DATA_EOF = bytes([0x55, 0xCC])
 
+    ANGLE_MIN = -math.pi/2 * 2/3
+    ANGLE_MAX =  math.pi/2 * 2/3
+
     @staticmethod
     def bs2str(bs):
         return " ".join([f"{i:02X}" for i in bs])
