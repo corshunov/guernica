@@ -91,11 +91,17 @@ class MPVClient():
     def pause(self):
         return self.set_property("pause", True)
 
-    def set_drm_brightness(self, value, osd=False):
+    def set_brightness(self, value, osd=False):
         v = max(-100, min(100, value))
-        v = int((v / 100.) * 65535)
         if osd:
-            self.show_text(f"drm-brightness: {value: 4}")
+            self.show_text(f"brightness: {v}")
+
+        return self.set_property("brightness", v)
+
+    def set_drm_brightness(self, value, osd=False):
+        v = max(0, min(65535, value))
+        if osd:
+            self.show_text(f"drm-brightness: {v}")
 
         return self.set_property("drm-brightness", v)
 

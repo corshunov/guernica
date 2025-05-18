@@ -8,11 +8,13 @@
         "min": 15000,
         "max": 65535,
         "delta": 200,
+        "drm": true,
         "osd": false
     },
     "audio": {
-        "directory": "audio",
+        "device": "sysdefault:CARD=vc4hdmi",
         "pause_min": 4,
-        "pause_max": 8
+        "pause_max": 8,
+        "brightness_threshold": 40000
     }
 }

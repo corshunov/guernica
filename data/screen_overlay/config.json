@@ -7,11 +7,13 @@
     "overlay": {
         "x_min": 650,
         "x_max": 950,
+        "blink_x_threshold": 100,
         "blink_pause_min": 5,
-        "blink_pause_max": 10
+        "blink_pause_max": 10,
+        "osd": false
     },
     "audio": {
-        "directory": "audio",
+        "device": "sysdefault:CARD=vc4hdmi0",
         "pause_min": 4,
         "pause_max": 8
     }

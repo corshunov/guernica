@@ -3,11 +3,17 @@ import subprocess
 
 
 def get_files(path):
-    return sorted([i for i in Path(path).iterdir() \
-        if (i.is_file() and i.suffix == ".wav")])
+    d = Path(path)
 
-def play(path):
-    return subprocess.Popen(['aplay', '-Dhdmi:CARD=vc4hdmi', path])
+    files = []
+    if d.is_dir():
+        files = sorted([f for f in d.iterdir() \
+            if (f.is_file() and f.suffix == ".wav")])
+
+    return files
+
+def play(dev, path):
+    return subprocess.Popen(['aplay', f'-D{dev}', path])
 
 def killall():
     p = subprocess.Popen(['killall', 'aplay'])
@@ -25,12 +31,18 @@ if __name__ == "__main__":
     import time
 
     try:
-        path = sys.argv[1]
+        dev = sys.argv[1]
+    except:
+        print("No argument for audio device provided")
+        sys.exit(1)
+
+    try:
+        path = sys.argv[2]
     except:
         print("No argument for audio file provided")
         sys.exit(1)
 
-    p = play(path)
+    p = play(dev, path)
     while True:
         print('Playing...')
         if p.poll() is not None:

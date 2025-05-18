@@ -14,7 +14,8 @@ import utils
 
 class ControllerBase():
     def __init__(self, cfg_path):
-        self.error_log = Path.cwd() / "controller_error.log"
+        self.root_dir = Path.cwd()
+        self.error_log = self.root_dir / "controller_error.log"
         self.configure(cfg_path)
 
     def log(self, text):
@@ -102,14 +103,20 @@ class ControllerBase():
                               -self.BRIGHTNESS_DELTA,
                               self.BRIGHTNESS_DELTA)
         self.brightness += br_diff
-        self.mpv.set_drm_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+
+        if self.BRIGHTNESS_DRM:
+            self.mpv.set_drm_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+        else:
+            self.mpv.set_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
 
     def init_overlay(self):
         cfg = self.cfg['overlay']
         self.OVERLAY_X_MIN = cfg['x_min']
         self.OVERLAY_X_MAX = cfg['x_max']
+        self.OVERLAY_BLINK_X_THRESHOLD = cfg['blink_x_threshold']
         self.OVERLAY_BLINK_PAUSE_MIN = cfg['blink_pause_min']
         self.OVERLAY_BLINK_PAUSE_MAX = cfg['blink_pause_max']
+        self.OVERLAY_OSD = cfg['osd']
 
         self.overlay_blink = False
         self.overlay_x = (self.OVERLAY_X_MIN + self.OVERLAY_X_MAX) // 2
@@ -125,7 +132,7 @@ class ControllerBase():
                 self.OVERLAY_X_MAX))
             x_new = int(x_new)
 
-            if abs(x_new - self.overlay_x) > 100:
+            if abs(x_new - self.overlay_x) > self.OVERLAY_BLINK_X_THRESHOLD:
                 self.overlay_blink = True
 
             self.overlay_x = x_new
@@ -140,7 +147,7 @@ class ControllerBase():
             time.sleep(0.2)
 
         if self.human_present:
-            self.mpv.set_x_overlay('eye', self.overlay_x, osd=False)
+            self.mpv.set_x_overlay('eye', self.overlay_x, osd=self.OVERLAY_OSD)
 
         if self.overlay_blink:
             self.mpv.set_x_overlay('fulllids', -2000, osd=False)
@@ -210,7 +217,7 @@ class ControllerBase():
 
     def init_audio(self):
         cfg = self.cfg['audio']
-        self.AUDIO_DIRECTORY = cfg['directory']
+        self.AUDIO_DEVICE = cfg['device']
         if self.flag_brightness:
             self.AUDIO_BRIGHTNESS_THRESHOLD = cfg['brightness_threshold']
         self.AUDIO_PAUSE_MIN = cfg['pause_min']
@@ -230,11 +237,14 @@ class ControllerBase():
                 if self.flag_brightness and self.brightness < self.AUDIO_BRIGHTNESS_THRESHOLD:
                     return
 
-                self.audio_files = audio.get_files(self.AUDIO_DIRECTORY)
+                self.audio_files = audio.get_files(self.root_dir / "audio")
+                if len(self.audio_files) == 0:
+                    return
+
                 random.shuffle(self.audio_files)
 
                 self.audio_file = self.audio_files.pop()
-                self.audio_proc = audio.play(self.audio_file)
+                self.audio_proc = audio.play(self.AUDIO_DEVICE, self.audio_file)
                 self.audio_start_dt = self.dt
                 self.audio_state = 1
 
@@ -261,7 +271,7 @@ class ControllerBase():
             if self.human_present:
                 if self.dt > self.audio_pause_until_dt:
                     self.audio_file = self.audio_files.pop()
-                    self.audio_proc = audio.play(self.audio_file)
+                    self.audio_proc = audio.play(self.AUDIO_DEVICE, self.audio_file)
                     self.audio_start_dt = self.dt
                     self.audio_state = 1
             else:
