@@ -1,8 +1,8 @@
 {
     "radar": {
         "uartdev": "/dev/ttyS0",
-        "distance_min: 500,
-        "distance_max: 3000
+        "distance_min": 500,
+        "distance_max": 3000
     },
     "brightness": {
         "min": 15000,

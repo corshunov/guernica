@@ -12,7 +12,7 @@ from flower import Flower
 import utils
 
 
-class ControllerBase():
+class Controller():
     def __init__(self, cfg_path):
         self.root_dir = Path.cwd()
         self.error_log = self.root_dir / "controller_error.log"
@@ -23,7 +23,7 @@ class ControllerBase():
             f.write(text)
 
     def configure(self, cfg_path):
-        cfg = utils.load_json(cfg_path)
+        self.cfg = utils.load_json(cfg_path)
 
         self.flag_radar = "radar" in self.cfg
         if self.flag_radar:
@@ -94,7 +94,7 @@ class ControllerBase():
         if self.human_present:
             br_new = utils.to_linear(self.distance,
                                      self.RADAR_DISTANCE_MIN, self.RADAR_DISTANCE_MAX,
-                                     self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN))
+                                     self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN)
             br_new = int(br_new)
         else:
             br_new = self.BRIGHTNESS_MIN
@@ -129,7 +129,7 @@ class ControllerBase():
                 self.radar.ANGLE_MIN,
                 self.radar.ANGLE_MAX,
                 self.OVERLAY_X_MIN,
-                self.OVERLAY_X_MAX))
+                self.OVERLAY_X_MAX)
             x_new = int(x_new)
 
             if abs(x_new - self.overlay_x) > self.OVERLAY_BLINK_X_THRESHOLD:
@@ -173,7 +173,7 @@ class ControllerBase():
             dc_new = utils.to_linear(self.distance,
                                      self.RADAR_DISTANCE_MIN,
                                      self.RADAR_DISTANCE_MAX,
-                                     0, 100))
+                                     0, 100)
         else:
             dc_new = 0
 
@@ -365,3 +365,15 @@ class ControllerBase():
                 self.angle = None
 
             self.process()
+
+
+if __name__ == "__main__":
+    import sys
+
+    try:
+        cfg_path = sys.argv[1]
+    except:
+        print("No argument for config path provided")
+        sys.exit(1)
+
+    ctl = Controller(cfg_path)
