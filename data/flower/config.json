@@ -6,7 +6,7 @@
     },
     "flower": {
         "pwm_min": 580,
-        "pwm_max: 2290,
-        "duty_cycle_delta": 0.2
+        "pwm_max": 2290,
+        "pwm_delta": 20
     }
 }

@@ -122,8 +122,9 @@ class Controller():
         self.OVERLAY_BLINK_PAUSE_MAX = cfg['blink_pause_max']
         self.OVERLAY_OSD = cfg['osd']
 
-        self.overlay_blink = False
         self.overlay_x = (self.OVERLAY_X_MIN + self.OVERLAY_X_MAX) // 2
+        self.overlay_blink = False
+        self.overlay_blink_speed = None
         self.overlay_next_blink_dt = datetime.now()
 
         print("Overlay initialized")
@@ -145,20 +146,27 @@ class Controller():
 
         if self.dt > self.overlay_next_blink_dt:
             self.overlay_blink = True
+            self.overlay_blink_speed = utils.to_linear(random.random(),
+                                                       0, 1,
+                                                       0.05, 0.2)
 
         if self.overlay_blink:
-            self.mpv.set_x_overlay('halflids', 400, osd=False)
-            time.sleep(0.2)
-            self.mpv.set_x_overlay('fulllids', 400, osd=False)
-            time.sleep(0.2)
+            self.mpv.set_x_overlay('halfhalflids', 400)
+            time.sleep(self.overlay_blink_speed)
+            self.mpv.set_x_overlay('halflids', 400)
+            time.sleep(self.overlay_blink_speed)
+            self.mpv.set_x_overlay('fulllids', 400)
+            time.sleep(self.overlay_blink_speed)
 
         if self.human_present:
             self.mpv.set_x_overlay('eye', self.overlay_x, osd=self.OVERLAY_OSD)
 
         if self.overlay_blink:
-            self.mpv.set_x_overlay('fulllids', -2000, osd=False)
-            time.sleep(0.2)
-            self.mpv.set_x_overlay('halflids', -2000, osd=False)
+            self.mpv.set_x_overlay('fulllids', -2000)
+            time.sleep(self.overlay_blink_speed)
+            self.mpv.set_x_overlay('halflids', -2000)
+            time.sleep(self.overlay_blink_speed)
+            self.mpv.set_x_overlay('halfhalflids', -2000)
 
             blink_delta = timedelta(seconds=random.randint(self.OVERLAY_BLINK_PAUSE_MIN,
                                                            self.OVERLAY_BLINK_PAUSE_MAX))
@@ -168,28 +176,29 @@ class Controller():
         cfg = self.cfg['flower']
         self.FLOWER_PWM_MIN = cfg['pwm_min']
         self.FLOWER_PWM_MAX = cfg['pwm_max']
-        self.FLOWER_DUTY_CYCLE_DELTA = cfg['duty_cycle_delta']
+        self.FLOWER_PWM_DELTA = cfg['pwm_delta']
 
-        self.flower = Flower(pwm_min=self.FLOWER_PWM_MIN,
-                             pwm_max=self.FLOWER_PWM_MAX,
-                             initial_dc=0)
+        self.flower = Flower()
+        self.flower.pwm = self.FLOWER_PWM_MIN
 
         print("Flower initialized")
 
     def process_flower(self):
         if self.human_present:
-            dc_new = utils.to_linear(self.distance,
-                                     self.RADAR_DISTANCE_MIN,
-                                     self.RADAR_DISTANCE_MAX,
-                                     0, 100)
+            pwm_new = utils.to_linear(self.distance,
+                                      self.RADAR_DISTANCE_MIN,
+                                      self.RADAR_DISTANCE_MAX,
+                                      self.FLOWER_PWM_MIN,
+                                      self.FLOWER_PWM_MAX)
+            pwm_new = int(pwm_new)
         else:
-            dc_new = 0
+            pwm_new = 0
 
-        dc_diff = utils.clamp(dc_new - self.flower.dc,
-                              -self.FLOWER_DUTY_CYCLE_DELTA,
-                              self.FLOWER_DUTY_CYCLE_DELTA)
+        pwm_diff = utils.clamp(pwm_new - self.flower.pwm,
+                               -self.FLOWER_PWM_DELTA,
+                               self.FLOWER_PWM_DELTA)
 
-        self.flower.dc += dc_diff
+        self.flower.pwm += pwm_diff
 
     def init_baby(self):
         cfg = self.cfg['baby']

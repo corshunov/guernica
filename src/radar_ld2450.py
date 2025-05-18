@@ -48,6 +48,7 @@ class LD2450():
         self.verbose = verbose
 
         self._ser = self._get_serial()
+        self._skipped = 0
 
     def _get_serial(self):
         try:
@@ -354,23 +355,31 @@ class LD2450():
         else:
             self._ser.reset_input_buffer()
 
-    def get_frame(self, raw=False, full=False):
+    def get_frame(self):
+        n_all = self.in_waiting
+        if n_all > 100:
+            n_throw = n_all - 30
+            _ = self._ser.read(n_throw)
+            self._skipped = n_throw
+        else:
+            self._skipped = 0
+
         res = self._ser.read_until(self.DATA_EOF)
 
         if res[-30:-26] != self.DATA_HEADER:
             print("Invalid data header")
             return
 
-        if raw:
-            return res
+        return res
         
-        res = res[-26:-4]
+    def parse_frame(self, frame, full=False):
+        payload = frame[-26:-4]
 
         data = []
         for i in range(3):
             from_i = i * 8
             to_i = from_i + 8
-            c = res[from_i:to_i]
+            c = payload[from_i:to_i]
 
             x = self._convert_data_int16(c[0:2], signed=True)
             y = self._convert_data_int16(c[2:4], signed=True)
@@ -386,6 +395,11 @@ class LD2450():
 
         return data
 
+    def get_data(self, full=False):
+        frame = self.get_frame()
+        data = self.parse_frame(frame, full=full)
+        return data
+
     def show_data(self, n=None, clean=True):
         if clean:
             self.clean(ret=True)
@@ -399,7 +413,7 @@ class LD2450():
             if (n is not None) and (c > n):
                 break
 
-            data = self.get_frame()
+            data = self.get_data()
             if data is None:
                 continue
 
@@ -412,7 +426,7 @@ class LD2450():
             i += 1
             c += 1
 
-            text = f"Sample: {i:5} | IN: {self.in_waiting:5} | "
+            text = f"Sample: {i:5} | IN: {self.in_waiting:5} | Skipped: {self._skipped:5}"
             text += " | ".join([f"{x:5} {y:5}" for (x,y) in data])
             print(text)
 
