@@ -14,7 +14,7 @@ class Baby():
         try:
             return serial.Serial(self.uartdev, 9600, timeout=1)
         except:
-            raise Exception(f"Failed to open UART device '{uartdev}'.") from None
+            raise Exception(f"Failed to open UART device '{self.uartdev}'.") from None
 
     def __del__(self):
         try:

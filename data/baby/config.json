@@ -1,6 +1,6 @@
 {
     "radar": {
-        "uartdev": "/dev/ttyS0",
+        "uartdev": "/dev/ttyAMA0",
         "distance_min": 500,
         "distance_max": 3000
     },

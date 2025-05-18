@@ -65,6 +65,8 @@ class Controller():
         r.set_zone_filtering(mode=0)
         self.radar = r
 
+        print("Radar initialized")
+
     def init_brightness(self):
         cfg = self.cfg['brightness']
         self.BRIGHTNESS_MIN = cfg['min']
@@ -76,6 +78,8 @@ class Controller():
         self.brightness = self.BRIGHTNESS_MIN
         self.brightness_do_not_change_until_dt = datetime.now()
         self.brightness_next_time_check_dt = datetime.now()
+
+        print("Brightness initialized")
 
     def process_brightness(self):
         if self.dt < self.brightness_do_not_change_until_dt:
@@ -121,6 +125,8 @@ class Controller():
         self.overlay_blink = False
         self.overlay_x = (self.OVERLAY_X_MIN + self.OVERLAY_X_MAX) // 2
         self.overlay_next_blink_dt = datetime.now()
+
+        print("Overlay initialized")
 
     def process_overlay(self):
         if self.human_present:
@@ -168,6 +174,8 @@ class Controller():
                              pwm_max=self.FLOWER_PWM_MAX,
                              initial_dc=0)
 
+        print("Flower initialized")
+
     def process_flower(self):
         if self.human_present:
             dc_new = utils.to_linear(self.distance,
@@ -191,7 +199,10 @@ class Controller():
         self.BABY_X_DELTA = cfg['x_delta']
 
         self.baby = Baby(self.BABY_UARTDEV)
+        self.baby_blink = False
         self.baby_next_blink_dt = datetime.now()
+
+        print("Baby initialized")
 
     def process_baby(self):
         if self.human_present:
@@ -199,7 +210,7 @@ class Controller():
                 self.angle,
                 self.radar.ANGLE_MIN,
                 self.radar.ANGLE_MAX,
-                -100, 100)
+                80, 150)
             x_new = int(x_new)
 
             x_diff = utils.clamp(x_new - self.baby.x,
@@ -209,6 +220,11 @@ class Controller():
             self.baby.x += x_diff
 
         if self.dt > self.baby_next_blink_dt:
+            self.baby_blink = True
+        else:
+            self.baby_blink = False
+
+        if self.baby_blink:
             self.baby.blink()
 
             blink_delta = timedelta(seconds=random.randint(self.BABY_BLINK_PAUSE_MIN,
@@ -230,6 +246,8 @@ class Controller():
         self.audio_proc = None
         self.audio_start_dt = None
         self.audio_pause_until_dt = None
+
+        print("Audio initialized")
 
     def process_audio(self):
         if self.audio_state == 0: # not playing
@@ -287,6 +305,8 @@ class Controller():
 
         self.hand = Hand(inverted=self.HAND_INVERTED)
 
+        print("Hand initialized")
+
     def process_hand(self):
         pass
         #for ts, num in ts_num_list:
@@ -306,34 +326,55 @@ class Controller():
         #        break
 
     def process(self):
-        self.text = (f"IN: {self.radar.in_waiting:7}"
-                     f" | Human: {'yes' if self.human_present else 'no '}"
-                     f" | Distance: {self.distance:7.2f if self.distance else '  ---  '}"
-                     f" | Angle: {self.angle:7.2f if self.angle else '  ---  '}")
+        text = f"IN: {self.radar.in_waiting:7}"
+        if self.human_present:
+            text += f" | Human: yes"
+            text += f" | Distance: {self.distance:7.2f}"
+            text += f" | Angle: {self.angle:7.2f}"
+        else:
+            text += f" | Human: no "
+            text +=  " | Distance:   ---  "
+            text +=  " | Angle:   ---  "
 
         if self.flag_brightness:
             self.process_brightness()
-            self.text += f" | Brightness: {self.brightness:7}"
+
+            text += f" | Brightness: {self.brightness:7}"
 
         if self.flag_overlay:
             self.process_overlay()
-            self.text += (f" | Overlay blink: {'yes' if self.overlay_blink else 'no '}"
-                          f" | Overlay X: {self.overlay_x:5}")
+
+            text += f" | Overlay X: {self.overlay_x:5}"
+            if self.overlay_blink:
+                text += f" | Overlay blink: yes"
+            else:
+                text += f" | Overlay blink: no "
 
         if self.flag_flower:
             self.process_flower()
-            self.text += f" | Flower: {self.pwm_value:7}"
+
+            text += f" | Flower: {self.pwm_value:7}"
 
         if self.flag_baby:
             self.process_baby()
 
+            text += f" | Baby: {self.baby.x:7}"
+            if self.baby_blink:
+                text += f" | Baby blink: yes"
+            else:
+                text += f" | Baby blink: no "
+
         if self.flag_hand:
             self.process_hand()
-            self.text += f" | Hand state: {self.hand_state:3}"
+
+            text += f" | Hand state: {self.hand_state:3}"
 
         if self.flag_audio:
             self.process_audio()
-            self.text += f" | Audio state: {self.audio_state:3}"
+
+            text += f" | Audio state: {self.audio_state:3}"
+
+        print(text)
 
     def start(self):
         n_radar_failures = 0
@@ -377,3 +418,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     ctl = Controller(cfg_path)
+    ctl.start()
