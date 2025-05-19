@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess
+import time
 
 
 def get_files(path):
@@ -28,7 +29,6 @@ def killall():
 
 if __name__ == "__main__":
     import sys
-    import time
 
     try:
         dev = sys.argv[1]
@@ -44,9 +44,8 @@ if __name__ == "__main__":
 
     p = play(dev, path)
     while True:
+        time.sleep(1)
         print('Playing...')
         if p.poll() is not None:
-            print("Finished with return code {p.returncode}")
+            print(f"Finished with return code {p.returncode}.")
             break
-
-        time.sleep(1)

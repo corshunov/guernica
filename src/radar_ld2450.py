@@ -48,7 +48,8 @@ class LD2450():
         self.verbose = verbose
 
         self._ser = self._get_serial()
-        self._skipped = 0
+
+        self.skipped = 0
 
     def _get_serial(self):
         try:
@@ -360,9 +361,9 @@ class LD2450():
         if n_all > 100:
             n_throw = n_all - 30
             _ = self._ser.read(n_throw)
-            self._skipped = n_throw
+            self.skipped = n_throw
         else:
-            self._skipped = 0
+            self.skipped = 0
 
         res = self._ser.read_until(self.DATA_EOF)
 
@@ -397,8 +398,10 @@ class LD2450():
 
     def get_data(self, full=False):
         frame = self.get_frame()
-        data = self.parse_frame(frame, full=full)
-        return data
+        if frame is None:
+            return
+
+        return self.parse_frame(frame, full=full)
 
     def show_data(self, n=None, clean=True):
         if clean:
@@ -426,7 +429,7 @@ class LD2450():
             i += 1
             c += 1
 
-            text = f"Sample: {i:5} | IN: {self.in_waiting:5} | Skipped: {self._skipped:5}"
+            text = f"Sample: {i:5} | IN: {self.in_waiting:5} | Skipped: {self.skipped:5}"
             text += " | ".join([f"{x:5} {y:5}" for (x,y) in data])
             print(text)
 

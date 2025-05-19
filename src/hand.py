@@ -1,18 +1,40 @@
 from adafruit_servokit import ServoKit
+import RPi.GPIO as GPIO
 
 import utils
 
 
+GPIO.setmode(GPIO.BCM)
+
 class Hand():
     N_FINGERS = 5
-    CLOSE_V = 20
-    OPEN_V = 80
 
-    def __init__(self, inverted=False):
+    C = 20
+    O = 80
+
+    POSITIONS = {
+        "close": [C,C,C,C,C],
+        "open":  [O,O,O,O,O],
+        0:       [C,C,C,C,C],
+        1:       [C,O,C,C,C],
+        2:       [C,O,O,C,C],
+        3:       [C,O,O,O,C],
+        4:       [C,O,O,O,C],
+        5:       [O,O,O,O,O],
+        6:       [O,C,C,C,O],
+        7:       [O,O,C,C,C],
+        8:       [O,O,O,C,C],
+        9:       [O,O,O,O,C],
+    }
+
+    def __init__(self, inverted=False, power_pin=10):
         self._kit = ServoKit(channels=16)
         self._inverted = inverted
 
-        self._pos = [self.CLOSE_V] * self.N_FINGERS
+        self._power_pin = power_pin
+        GPIO.setup(self._power_pin, GPIO.OUT)
+
+        self._pos = [None,None,None,None,None]
         self.close()
 
     def _finger(self, i):
@@ -33,12 +55,6 @@ class Hand():
         angle = (100 - v) / 100 * 180
         self._finger(i).angle = int(angle)
 
-    def stop(self):
-        for i in range(self.N_FINGERS):
-            self._finger(i).angle = None
-
-        self.power_off()
-
     @property
     def pos(self):
         return self._pos.copy()
@@ -49,71 +65,37 @@ class Hand():
             self._set_finger_pos(i, pos[i])
 
     def close(self):
-        self.pos = [self.CLOSE_V] * self.N_FINGERS
+        self.pos = self.POSITIONS["close"]
 
     def open(self):
-        self.pos = [self.OPEN_V] * self.N_FINGERS
+        self.pos = self.POSITIONS["open"]
 
-    def show_number(self, n):
-        if (n < 0) or (n > 5):
-            raise Exception("Invalid number")
+    def show_digit(self, n):
+        if (n < 0) or (n > 9):
+            return
 
-        self.close()
+        self.pos = self.POSITIONS[n]
 
-        pos = self.pos
+    def stop(self):
+        GPIO.output(self._power_pin, GPIO.LOW)
+        for i in range(self.N_FINGERS):
+            self._finger(i).angle = None
 
-        if n == 5:
-            v = self.OPEN_V
-        else:
-            v = self.CLOSE_V
-
-        pos[0] = v
-
-        for i in range(1, self.N_FINGERS):
-            if i <= n:
-                v = self.OPEN_V
-            else:
-                v = self.CLOSE_V
-
-            pos[i] = v
-
-        self.pos = pos
+    def start(self):
+        GPIO.output(self._power_pin, GPIO.HIGH)
+        self.pos = self._pos
 
 
 if __name__ == "__main__":
-    from datetime import datetime, timedelta
-    import sys
     import time
 
-    import audio
-
-    audio_path = "/home/tami/audio/flower_sound_2.wav"
-    ts_num_list = [
-        # (ts, number)
-        (2.3, 4),
-        (6.0, 1),
-        (9.4, 2),
-        (13.4, 5),
-        (16.0, 3),
-    ]
-
     hand = Hand(inverted=True)
+    time.sleep(3)
 
-    audio_proc = audio.play(audio_path)
-    start_dt = datetime.now()
+    for i in range(10):
+        hand.close()
+        time.sleep(0.5)
+        hand.show_digit(i)
+        time.sleep(3)
 
-    for ts, num in ts_num_list:
-        ts_dt = start_dt + timedelta(seconds=ts)
-        while True:
-            dt = datetime.now()
-            print(dt)
-            if dt > ts_dt:
-                print(f"!!!!!!!!!!!!!!!!!!!!!!!! {ts}          {num}")
-                hand.show_number(num)
-                time.sleep(1.5)
-                hand.close()
-                break
-
-    while True:
-        if audio_proc.poll() is not None:
-            break
+    hand.close()

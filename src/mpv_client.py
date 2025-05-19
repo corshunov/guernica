@@ -34,6 +34,12 @@ class MPVClient():
 
         self._request_id = 0
 
+    def __del__(self):
+        try:
+            self.socket.close()
+        except:
+            pass
+
     def _next_request_id(self):
         self._request_id = (self._request_id % 999) + 1
         return self._request_id
