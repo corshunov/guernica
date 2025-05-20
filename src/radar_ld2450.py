@@ -49,8 +49,6 @@ class LD2450():
 
         self._ser = self._get_serial()
 
-        self.skipped = 0
-
     def _get_serial(self):
         try:
             return serial.Serial(self.uartdev, 256000, timeout=1)
@@ -358,12 +356,12 @@ class LD2450():
 
     def get_frame(self):
         n_all = self.in_waiting
-        if n_all > 100:
-            n_throw = n_all - 30
-            _ = self._ser.read(n_throw)
-            self.skipped = n_throw
-        else:
-            self.skipped = 0
+        if n_all >= 60:
+            n_skipped = n_all - 30
+            _ = self._ser.read(n_skipped)
+            res = self._ser.read_until(self.DATA_EOF)
+            n_skipped += len(res)
+            print(f"Skipping {n_skipped} bytes")
 
         res = self._ser.read_until(self.DATA_EOF)
 
@@ -429,7 +427,7 @@ class LD2450():
             i += 1
             c += 1
 
-            text = f"Sample: {i:5} | IN: {self.in_waiting:5} | Skipped: {self.skipped:5}"
+            text = f"Sample: {i:5} | IN: {self.in_waiting:5}"
             text += " | ".join([f"{x:5} {y:5}" for (x,y) in data])
             print(text)
 

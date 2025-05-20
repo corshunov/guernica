@@ -460,7 +460,6 @@ class Controller():
 
     def process(self):
         text =  f"IN: {self.radar.in_waiting:7}"
-        text += f" | Skipped: {self.radar.skipped:5}"
 
         if self.human_present:
             text += f" | Human: yes"
