@@ -1,0 +1,10 @@
+[Unit]
+Description=Guernica MPV Simple
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c "cd /home/tami/guernica; ./src/services/mpv_simple/start_mpv_simple.sh"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

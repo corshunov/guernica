@@ -1,0 +1,10 @@
+[Unit]
+Description=Guernica MPV Overlay
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c "cd /home/tami/guernica; ./src/services/mpv_overlay/start_mpv_overlay.sh"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

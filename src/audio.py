@@ -27,6 +27,17 @@ def killall():
 
         time.sleep(1)
 
+def load_marks(path):
+    # mark format: offset in seconds, position name
+
+    with path.with_suffix(".csv").open("r") as f:
+        content = f.read()
+
+    lines = content.strip().split('\n')
+    marks = [l.split(',') for l in lines]
+    marks = [[float(m[0]), m[1]] for m in marks]
+    return marks
+
 if __name__ == "__main__":
     import sys
 

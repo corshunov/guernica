@@ -5,7 +5,7 @@ from pathlib import Path
 def clamp(v, low, high):
     return max(low, min(high, v))
 
-def to_linear(v, low, high, begin, end):
+def linear_map(v, low, high, begin, end):
     v = clamp(v, low, high)
     v = (v - low) / (high - low) * (end - begin) + begin
     return v

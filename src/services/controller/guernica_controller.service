@@ -1,0 +1,10 @@
+[Unit]
+Description=Guernica Controller
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c "cd /home/tami/guernica; source .venv/bin/activate; exec python src/controller.py conf.cfg"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
