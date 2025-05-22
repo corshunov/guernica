@@ -37,11 +37,14 @@ class Hand():
         self.inverted = inverted
 
         self._power_pin = power_pin
-        self._position = self.POSITIONS['none']
+        #self._position = self.POSITIONS['none']
+        self._position = self.POSITIONS['close']
         self._stopped = True
 
         GPIO.setup(self._power_pin, GPIO.OUT)
-        self.set_position_by_name("close")
+
+        self.start()
+        #self.set_position_by_name("close")
 
     def _finger(self, index):
         return self._kit.servo[index]
@@ -90,10 +93,14 @@ class Hand():
     def start(self):
         GPIO.output(self._power_pin, GPIO.HIGH)
         self._kit = ServoKit(channels=16)
-        self.set_position(self._position)
         self._stopped = False
 
+        self.set_position(self._position)
+
     def stop(self):
+        if self._stopped:
+            return
+
         for i in range(self.N_FINGERS):
             self._finger(i).angle = None
         GPIO.output(self._power_pin, GPIO.LOW)

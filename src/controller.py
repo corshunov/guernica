@@ -513,7 +513,7 @@ class Controller():
         self.HAND_INVERTED = cfg['inverted']
 
         self.hand = Hand(inverted=self.HAND_INVERTED)
-        self.hand_stop_dt = self.dt + timedelta(seconds=1)
+        self.hand_stop_dt = datetime.now() + timedelta(seconds=1)
 
         self.hand_audio_marks = None
         self.hand_audio_current_mark_dt = None
@@ -530,7 +530,7 @@ class Controller():
 
         if (self.audio_state in [0,2,3]) and \
            (self.audio_state_prev == 1):
-            self.hand.set_position_by_name("close")
+            #self.hand.set_position_by_name("close")
             self.hand_stop_dt = self.dt + timedelta(seconds=1)
 
             self.hand_audio_marks = None
