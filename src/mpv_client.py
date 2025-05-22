@@ -67,7 +67,7 @@ class MPVClient():
     def get_property(self, name):
         cmd = ["get_property", name]
         res = self._send_json(cmd)
-        if 'data' in res:
+        if isinstance(res, dict) and 'data' in res:
             return res['data']
 
     def set_property(self, name, value):
@@ -91,6 +91,10 @@ class MPVClient():
 
     def show_text(self, text):
         cmd = ["show-text", text]
+        return self._send_json(cmd)
+
+    def show_progress(self):
+        cmd = ["show-progress"]
         return self._send_json(cmd)
 
     def play(self):

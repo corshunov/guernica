@@ -20,25 +20,26 @@ class Controller():
         self.error_log = self.base_dpath / "controller_error.log"
 
         self.configure()
+        self.init_modules()
 
     def __del__(self):
-        if self.flag_flower:
-            try:
+        try:
+            if self.flag_flower:
                 self.flower.stop()
-            except:
-                pass
+        except:
+            pass
 
-        if self.flag_baby:
-            try:
+        try:
+            if self.flag_baby:
                 self.baby.close()
-            except:
-                pass
+        except:
+            pass
 
-        if self.flag_horse:
-            try:
+        try:
+            if self.flag_horse:
                 self.horse.close()
-            except:
-                pass
+        except:
+            pass
 
     def log(self, text):
         with self.error_log.open("a") as f:
@@ -49,36 +50,44 @@ class Controller():
         self.cfg = utils.load_json(path)
 
         self.flag_radar = "radar" in self.cfg
-        if self.flag_radar:
-            self.init_radar()
 
         self.flag_video = "video" in self.cfg
         if self.flag_video:
             self.flag_video_brightness = "brightness" in self.cfg['video']
             self.flag_video_overlay = "overlay" in self.cfg['video']
-
-            self.init_video()
         else:
             self.flag_video_brightness = False
             self.flag_video_overlay = False
 
         self.flag_audio = "audio" in self.cfg
+
+        self.flag_flower = "flower" in self.cfg
+
+        self.flag_baby = "baby" in self.cfg
+
+        self.flag_horse = "horse" in self.cfg
+
+        self.flag_hand = "hand" in self.cfg
+
+    def init_modules(self):
+        if self.flag_radar:
+            self.init_radar()
+
+        if self.flag_video:
+            self.init_video()
+
         if self.flag_audio:
             self.init_audio()
 
-        self.flag_flower = "flower" in self.cfg
         if self.flag_flower:
             self.init_flower()
 
-        self.flag_baby = "baby" in self.cfg
         if self.flag_baby:
             self.init_baby()
 
-        self.flag_horse = "horse" in self.cfg
         if self.flag_horse:
             self.init_horse()
 
-        self.flag_hand = "hand" in self.cfg
         if self.flag_hand:
             self.init_hand()
 
@@ -97,11 +106,12 @@ class Controller():
         self.radar = r
 
         self.radar_n_failures = 0
-        self.human_present = False
-        self.human_present_reliable = False
         self.radar_distance = None
-        self.radar_distance_reliable = self.RADAR_DISTANCE_MAX
         self.radar_angle = None
+        self.radar_human_present = False
+
+        self.radar_distance_reliable = self.RADAR_DISTANCE_MAX
+        self.radar_distance_action = False
 
         print("Radar initialized")
 
@@ -131,11 +141,11 @@ class Controller():
 
         if (self.radar_distance is not None) and \
            (self.radar_distance < self.RADAR_DISTANCE_MAX):
-            self.human_present = True
+            self.radar_human_present = True
         else:
-            self.human_present = False
+            self.radar_human_present = False
 
-        if self.human_present:
+        if self.radar_human_present:
             radar_distance_reliable_new = utils.clamp(
                 self.radar_distance,
                 self.RADAR_DISTANCE_MIN,
@@ -148,15 +158,28 @@ class Controller():
             -self.RADAR_DISTANCE_DELTA, self.RADAR_DISTANCE_DELTA)
         self.radar_distance_reliable += radar_distance_reliable_diff
 
-        if self.radar_distance_reliable < self.RADAR_DISTANCE_MAX:
-            self.human_present_reliable = True
+        if self.radar_distance_reliable < self.RADAR_DISTANCE_ACTION:
+            self.radar_distance_action = True
         else:
-            self.human_present_reliable = False
+            self.radar_distance_action = False
+
+        if self.video_osd_state:
+            if self.radar_distance:
+                self.video_osd_text += f"Distance: {self.radar_distance:6.0f}\n"
+            else:
+                self.video_osd_text += f"Distance:   ---  \n"
+
+            self.video_osd_text += f"Distance reliable: {self.radar_distance_reliable:6.0f}\n"
 
         return True
 
     def init_video(self):
+        cfg = self.cfg['video']
+        self.VIDEO_OSD = cfg['osd']
+
         self.mpv = MPVClient()
+
+        self.video_osd_state = self.VIDEO_OSD
 
         if self.flag_video_brightness:
             self.init_brightness()
@@ -177,22 +200,26 @@ class Controller():
         self.BRIGHTNESS_MAX = cfg['max']
         self.BRIGHTNESS_DELTA = cfg['delta']
         self.BRIGHTNESS_DRM = cfg['drm']
-        self.BRIGHTNESS_OSD = cfg['osd']
 
         self.brightness = self.BRIGHTNESS_MIN
         self.brightness_do_not_change_until_dt = datetime.now()
         self.brightness_next_time_check_dt = datetime.now()
 
         if self.BRIGHTNESS_DRM:
-            self.mpv.set_drm_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+            self.mpv.set_drm_brightness(self.brightness)
         else:
-            self.mpv.set_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+            self.mpv.set_brightness(self.brightness)
 
         print("Video brightness initialized")
 
     def process_brightness(self):
         if self.dt < self.brightness_do_not_change_until_dt:
+            self.video_osd_state = False
             return
+
+        self.video_osd_state = self.VIDEO_OSD
+        if self.video_osd_state:
+            self.video_osd_text += f"Brightness: {self.brightness:6}\n"
 
         if self.dt > self.brightness_next_time_check_dt:
             remaining_time = self.mpv.get_property("time-remaining")
@@ -202,37 +229,37 @@ class Controller():
                     self.brightness_do_not_change_until_dt = self.dt + timedelta(seconds=3)
                     return
             else:
-                self.log(f"{self.df}: failed to get property 'time-remaining' from MPV")
+                self.log(f"{self.dt}: failed to get property 'time-remaining' from MPV")
 
-        #if self.human_present:
-        #    br_new = utils.linear_map(
-        #        self.radar_distance,
-        #        self.RADAR_DISTANCE_MIN, self.RADAR_DISTANCE_MAX,
-        #        self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN)
-        #    br_new = int(br_new)
-        #else:
-        #    br_new = self.BRIGHTNESS_MIN
+        if self.radar_human_present:
+            br_new = utils.linear_map(
+                self.radar_distance,
+                self.RADAR_DISTANCE_MIN, self.RADAR_DISTANCE_MAX,
+                self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN)
+            br_new = int(br_new)
+        else:
+            br_new = self.BRIGHTNESS_MIN
 
-        br_new = utils.linear_map(
-            self.radar_distance_reliable,
-            self.RADAR_DISTANCE_MIN, self.RADAR_DISTANCE_MAX,
-            self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN)
-        br_new = int(br_new)
+        #br_new = utils.linear_map(
+        #    self.radar_distance_reliable,
+        #    self.RADAR_DISTANCE_MIN, self.RADAR_DISTANCE_MAX,
+        #    self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN)
+        #br_new = int(br_new)
 
-        #br_diff = utils.clamp(
-        #    br_new - self.brightness,
-        #    -self.BRIGHTNESS_DELTA,
-        #    self.BRIGHTNESS_DELTA)
+        br_diff = utils.clamp(
+            br_new - self.brightness,
+            -self.BRIGHTNESS_DELTA,
+            self.BRIGHTNESS_DELTA)
 
-        br_diff = br_new - self.brightness
+        #br_diff = br_new - self.brightness
 
         self.brightness += br_diff
 
         if br_diff != 0:
             if self.BRIGHTNESS_DRM:
-                self.mpv.set_drm_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+                self.mpv.set_drm_brightness(self.brightness)
             else:
-                self.mpv.set_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+                self.mpv.set_brightness(self.brightness)
 
     def init_overlay(self):
         cfg = self.cfg['video']['overlay']
@@ -241,7 +268,6 @@ class Controller():
         self.OVERLAY_BLINK_X_THRESHOLD = cfg['blink_x_threshold']
         self.OVERLAY_BLINK_PAUSE_MIN = cfg['blink_pause_min']
         self.OVERLAY_BLINK_PAUSE_MAX = cfg['blink_pause_max']
-        self.OVERLAY_OSD = cfg['osd']
 
         self.overlay_x = (self.OVERLAY_X_MIN + self.OVERLAY_X_MAX) // 2
         self.overlay_blink = False
@@ -251,7 +277,10 @@ class Controller():
         print("Video overlay initialized")
 
     def process_overlay(self):
-        if self.human_present:
+        if self.video_osd_state:
+            self.video_osd_text += f"Overlay X: {self.overlay_x}\n"
+
+        if self.radar_human_present:
             x_new = utils.linear_map(
                 self.angle,
                 self.radar.ANGLE_MIN, self.radar.ANGLE_MAX,
@@ -276,8 +305,8 @@ class Controller():
             self.mpv.set_x_overlay('fulllids', 400)
             time.sleep(self.overlay_blink_speed)
 
-        if self.human_present:
-            self.mpv.set_x_overlay('eye', self.overlay_x, osd=self.OVERLAY_OSD)
+        if self.radar_human_present:
+            self.mpv.set_x_overlay('eye', self.overlay_x)
 
         if self.overlay_blink:
             self.mpv.set_x_overlay('fulllids', -2000)
@@ -294,8 +323,6 @@ class Controller():
     def init_audio(self):
         cfg = self.cfg['audio']
         self.AUDIO_DEVICE = cfg['device']
-        #if self.flag_video_brightness:
-        #    self.AUDIO_BRIGHTNESS_THRESHOLD = cfg['brightness_threshold']
         self.AUDIO_PAUSE_MIN = cfg['pause_min']
         self.AUDIO_PAUSE_MAX = cfg['pause_max']
 
@@ -311,27 +338,25 @@ class Controller():
         print("Audio initialized")
 
     def process_audio(self):
+        if self.video_osd_state:
+           self.video_osd_text += f"Audio state: {self.audio_state}\n"
+           if self.audio_state == 1:
+               self.video_osd_text += f"Audio file: {self.audio_file.name[:20]}\n"
+
         self.audio_state_prev = self.audio_state
 
         if self.audio_state == 0: # not playing
             self.audio_files = None
 
-            #if self.human_present:
-            if self.human_present_reliable:
-                #if self.flag_video_brightness and \
-                #   (self.brightness < self.AUDIO_BRIGHTNESS_THRESHOLD):
-                #    return
-
+            if self.radar_distance_action:
                 self.audio_files = audio.get_files(self.base_dpath / "media" / "audio")
-                if len(self.audio_files) == 0:
-                    return
+                if len(self.audio_files) > 0:
+                    random.shuffle(self.audio_files)
 
-                random.shuffle(self.audio_files)
-
-                self.audio_file = self.audio_files.pop(0)
-                self.audio_proc = audio.play(self.AUDIO_DEVICE, self.audio_file)
-                self.audio_start_dt = self.dt
-                self.audio_state = 1
+                    self.audio_file = self.audio_files.pop(0)
+                    self.audio_proc = audio.play(self.AUDIO_DEVICE, self.audio_file)
+                    self.audio_start_dt = self.dt
+                    self.audio_state = 1
 
         elif self.audio_state == 1: # playing audio file
             if self.audio_proc.poll() is not None:
@@ -342,8 +367,7 @@ class Controller():
                     self.log(text)
                     
                     self.audio_state = 0
-                #elif self.human_present:
-                elif self.human_present_reliable:
+                elif self.radar_distance_action:
                     if len(self.audio_files) != 0:
                         audio_delta = timedelta(
                             seconds=random.randint(self.AUDIO_PAUSE_MIN,
@@ -356,8 +380,7 @@ class Controller():
                     self.audio_state = 0
 
         elif self.audio_state == 2: # paused (there is at least 1 audio file left)
-            #if self.human_present:
-            if self.human_present_reliable:
+            if self.radar_distance_action:
                 if self.dt > self.audio_pause_until_dt:
                     self.audio_file = self.audio_files.pop(0)
                     self.audio_proc = audio.play(self.AUDIO_DEVICE, self.audio_file)
@@ -367,8 +390,7 @@ class Controller():
                 self.audio_state = 0
 
         elif self.audio_state == 3: # played all audio files
-            #if not self.human_present:
-            if not self.human_present_reliable:
+            if not self.radar_distance_action:
                 self.audio_state = 0
 
     def init_flower(self):
@@ -385,7 +407,7 @@ class Controller():
         print("Flower initialized")
 
     def process_flower(self):
-        if self.human_present:
+        if self.radar_human_present:
             dc_new = utils.linear_map(
                 self.radar_distance,
                 self.RADAR_DISTANCE_MIN,
@@ -408,7 +430,7 @@ class Controller():
             if dc_diff != 0:
                 self.flower.change_duty_cycle(self.flower_dc)
             else:
-                if not self.human_present:
+                if not self.radar_human_present:
                     self.flower.stop()
                     self.flower_stopped = True
 
@@ -427,7 +449,7 @@ class Controller():
         print("Baby initialized")
 
     def process_baby(self):
-        if self.human_present:
+        if self.radar_human_present:
             x_new = utils.linear_map(
                 self.angle,
                 self.radar.ANGLE_MIN,
@@ -472,7 +494,7 @@ class Controller():
 
         self.horse_next_time_check_dt = self.dt + timedelta(seconds=1)
 
-        if self.human_present:
+        if self.radar_human_present:
             self.horse.write(b"move\n")
 
     def init_hand(self):
@@ -539,6 +561,8 @@ class Controller():
                     self.hand_audio_next_mark_position = mark[1]
 
     def process(self):
+        self.video_osd_text = ""
+
         text = f"{self.dt}"
 
         if self.flag_radar:
@@ -547,11 +571,11 @@ class Controller():
                 return
 
             text =  f" | IN: {self.radar.in_waiting:5}"
-            if self.human_present:
+            if self.radar_human_present:
                 text += f" | Human: yes"
-                text += f" | Distance: {self.radar_distance:7.2f}"
-                text += f" | Distance reliable: {self.radar_distance_reliable:7.2f}"
-                text += f" | Angle: {self.radar_angle:7.2f}"
+                text += f" | Distance: {self.radar_distance:6.0f}"
+                text += f" | Distance reliable: {self.radar_distance_reliable:6.0f}"
+                text += f" | Angle: {self.radar_angle:6.0f}"
             else:
                 text += f" | Human: no "
                 text +=  " | Distance:   ---  "
@@ -580,7 +604,7 @@ class Controller():
         if self.flag_flower:
             self.process_flower()
 
-            text += f" | Flower: {self.flower_dc:7.2f}"
+            text += f" | Flower: {self.flower_dc:6.0f}"
 
         if self.flag_baby:
             self.process_baby()
@@ -594,7 +618,7 @@ class Controller():
         if self.flag_horse:
             self.process_horse()
 
-            if self.human_present:
+            if self.radar_human_present:
                 text += f" | Horse moving: yes"
             else:
                 text += f" | Horse moving: no "
@@ -606,6 +630,9 @@ class Controller():
                 text += f" | Hand position:     ---    "
             else:
                 text += f" | Hand position: {self.hand_audio_current_mark_position:<10} "
+
+        if self.flag_video and self.video_osd_state:
+            self.mpv.show_text(self.video_osd_text)
 
         print(text)
 

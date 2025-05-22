@@ -1,7 +1,9 @@
 #!/bin/sh
 
+cd /home/tami/guernica
+
 mpv \
-    "video.mp4" \
+    "conf/media/video.mp4" \
     --loop-file=inf \
     --aid=no \
     --drm-draw-plane=overlay \
