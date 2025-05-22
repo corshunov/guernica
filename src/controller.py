@@ -163,7 +163,7 @@ class Controller():
         else:
             self.radar_distance_action = False
 
-        if self.video_osd_state:
+        if self.flag_video and self.video_osd_state:
             if self.radar_distance:
                 self.video_osd_text += f"Distance: {self.radar_distance:6.0f}\n"
             else:
@@ -338,7 +338,7 @@ class Controller():
         print("Audio initialized")
 
     def process_audio(self):
-        if self.video_osd_state:
+        if self.flag_video and self.video_osd_state:
            self.video_osd_text += f"Audio state: {self.audio_state}\n"
            if self.audio_state == 1:
                self.video_osd_text += f"Audio file: {self.audio_file.name[:20]}\n"
@@ -484,6 +484,7 @@ class Controller():
         self.HORSE_UARTDEV = cfg['uartdev']
 
         self.horse = serial.Serial(self.HORSE_UARTDEV, 9600, timeout=1)
+        self.horse_state = 0
         self.horse_next_time_check_dt = datetime.now()
 
         print("Horse initialized")
@@ -492,10 +493,18 @@ class Controller():
         if self.dt < self.horse_next_time_check_dt:
             return
 
-        self.horse_next_time_check_dt = self.dt + timedelta(seconds=1)
+        if self.horse_state == 0:
+            if self.radar_distance_reliable < 1000:
+                n = utils.linear_map(
+                    random.random(), 0, 1, 20, 100)
+                self.horse.write(f"trot {n}\n".encode())
 
-        if self.radar_human_present:
-            self.horse.write(b"move\n")
+                self.horse_next_time_check_dt = self.dt + timedelta(seconds=10)
+                self.horse_state = 1
+
+        elif self.horse_state == 1:
+            if self.radar_distance_reliable > 1500:
+                self.horse_state = 0
 
     def init_hand(self):
         cfg = self.cfg['hand']
@@ -575,12 +584,12 @@ class Controller():
                 text += f" | Human: yes"
                 text += f" | Distance: {self.radar_distance:6.0f}"
                 text += f" | Distance reliable: {self.radar_distance_reliable:6.0f}"
-                text += f" | Angle: {self.radar_angle:6.0f}"
+                text += f" | Angle: {self.radar_angle:7.2f}"
             else:
                 text += f" | Human: no "
-                text +=  " | Distance:   ---  "
-                text +=  " | Distance reliable:   ---  "
-                text +=  " | Angle:   ---  "
+                text +=  " | Distance:   --  "
+                text +=  " | Distance reliable:   --  "
+                text +=  " | Angle:   --  "
 
         if self.flag_video_brightness:
             self.process_brightness()
@@ -618,10 +627,7 @@ class Controller():
         if self.flag_horse:
             self.process_horse()
 
-            if self.radar_human_present:
-                text += f" | Horse moving: yes"
-            else:
-                text += f" | Horse moving: no "
+            text += f" | Horse state: {self.horse_state:3}"
 
         if self.flag_hand:
             self.process_hand()
