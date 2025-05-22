@@ -277,12 +277,14 @@ class Controller():
         print("Video overlay initialized")
 
     def process_overlay(self):
+        self.overlay_blink = False
+
         if self.video_osd_state:
             self.video_osd_text += f"Overlay X: {self.overlay_x}\n"
 
         if self.radar_human_present:
             x_new = utils.linear_map(
-                self.angle,
+                self.radar_angle,
                 self.radar.ANGLE_MIN, self.radar.ANGLE_MAX,
                 self.OVERLAY_X_MIN, self.OVERLAY_X_MAX)
             x_new = int(x_new)
