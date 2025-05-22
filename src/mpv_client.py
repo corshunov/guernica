@@ -66,7 +66,9 @@ class MPVClient():
 
     def get_property(self, name):
         cmd = ["get_property", name]
-        return self._send_json(cmd)
+        res = self._send_json(cmd)
+        if 'data' in res:
+            return res['data']
 
     def set_property(self, name, value):
         cmd = ["set_property", name, value]

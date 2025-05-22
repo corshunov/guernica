@@ -54,8 +54,8 @@ class Controller():
 
         self.flag_video = "video" in self.cfg
         if self.flag_video:
-            self.flag_video_brightness = "brightness" in cfg['video']
-            self.flag_video_overlay = "overlay" in cfg['video']
+            self.flag_video_brightness = "brightness" in self.cfg['video']
+            self.flag_video_overlay = "overlay" in self.cfg['video']
 
             self.init_video()
         else:
@@ -88,6 +88,7 @@ class Controller():
         self.RADAR_DISTANCE_MIN = cfg['distance_min']
         self.RADAR_DISTANCE_MAX = cfg['distance_max']
         self.RADAR_DISTANCE_DELTA = cfg['distance_delta']
+        self.RADAR_DISTANCE_ACTION = cfg['distance_action']
 
         r = LD2450(self.RADAR_UARTDEV)
         r.set_bluetooth_off(restart=True)
@@ -131,7 +132,7 @@ class Controller():
         if (self.radar_distance is not None) and \
            (self.radar_distance < self.RADAR_DISTANCE_MAX):
             self.human_present = True
-        else
+        else:
             self.human_present = False
 
         if self.human_present:
@@ -175,11 +176,17 @@ class Controller():
         self.BRIGHTNESS_MIN = cfg['min']
         self.BRIGHTNESS_MAX = cfg['max']
         self.BRIGHTNESS_DELTA = cfg['delta']
+        self.BRIGHTNESS_DRM = cfg['drm']
         self.BRIGHTNESS_OSD = cfg['osd']
 
         self.brightness = self.BRIGHTNESS_MIN
         self.brightness_do_not_change_until_dt = datetime.now()
         self.brightness_next_time_check_dt = datetime.now()
+
+        if self.BRIGHTNESS_DRM:
+            self.mpv.set_drm_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
+        else:
+            self.mpv.set_brightness(self.brightness, osd=self.BRIGHTNESS_OSD)
 
         print("Video brightness initialized")
 
@@ -188,7 +195,7 @@ class Controller():
             return
 
         if self.dt > self.brightness_next_time_check_dt:
-            remaining_time = float(self.mpv.get_property("time-remaining"))
+            remaining_time = self.mpv.get_property("time-remaining")
             if remaining_time is not None:
                 self.brightness_next_time_check_dt = self.dt + timedelta(seconds=1)
                 if remaining_time < 2:
@@ -210,6 +217,7 @@ class Controller():
             self.radar_distance_reliable,
             self.RADAR_DISTANCE_MIN, self.RADAR_DISTANCE_MAX,
             self.BRIGHTNESS_MAX, self.BRIGHTNESS_MIN)
+        br_new = int(br_new)
 
         #br_diff = utils.clamp(
         #    br_new - self.brightness,
@@ -538,14 +546,16 @@ class Controller():
             if not f:
                 return
 
-            text =  f" | IN: {self.radar.in_waiting:7}"
+            text =  f" | IN: {self.radar.in_waiting:5}"
             if self.human_present:
                 text += f" | Human: yes"
                 text += f" | Distance: {self.radar_distance:7.2f}"
-                text += f" | Angle: {self.angle:7.2f}"
+                text += f" | Distance reliable: {self.radar_distance_reliable:7.2f}"
+                text += f" | Angle: {self.radar_angle:7.2f}"
             else:
                 text += f" | Human: no "
                 text +=  " | Distance:   ---  "
+                text +=  " | Distance reliable:   ---  "
                 text +=  " | Angle:   ---  "
 
         if self.flag_video_brightness:

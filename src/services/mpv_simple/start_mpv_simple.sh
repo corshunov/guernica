@@ -1,10 +1,12 @@
 #!/bin/sh
 
+cd /home/tami/guernica
+
 mpv \
-    "video.mp4" \
+    "conf/media/video.mp4" \
     --loop-file=inf \
     --aid=no \
-    --vo=drm \
+    --vo=gpu \
     --hwdec=v4l2m2m \
     --drm-draw-plane=overlay \
     --drm-drmprime-video-plane=primary \
