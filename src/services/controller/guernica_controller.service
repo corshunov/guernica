@@ -1,13 +1,12 @@
 [Unit]
 Description=Guernica Controller
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=/bin/sh -c "cd /home/tami/guernica; . .venv/bin/activate; exec python src/controller.py conf"
 Restart=always
 RestartSec=5
-StartLimitInterval=0
-StartLimitBurst=0
 
 [Install]
 WantedBy=multi-user.target

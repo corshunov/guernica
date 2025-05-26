@@ -1,13 +1,12 @@
 [Unit]
 Description=Guernica MPV Simple
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=/home/tami/guernica/src/services/mpv_simple/start_mpv_simple.sh
 Restart=always
 RestartSec=5
-StartLimitInterval=0
-StartLimitBurst=0
 
 [Install]
 WantedBy=multi-user.target
