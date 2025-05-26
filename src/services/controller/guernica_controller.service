@@ -6,7 +6,7 @@ Type=simple
 ExecStart=/bin/sh -c "cd /home/tami/guernica; . .venv/bin/activate; exec python src/controller.py conf"
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=0
+StartLimitInterval=0
 StartLimitBurst=0
 
 [Install]

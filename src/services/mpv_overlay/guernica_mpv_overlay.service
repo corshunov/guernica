@@ -6,7 +6,7 @@ Type=simple
 ExecStart=/home/tami/guernica/src/services/mpv_overlay/start_mpv_overlay.sh
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=0
+StartLimitInterval=0
 StartLimitBurst=0
 
 [Install]

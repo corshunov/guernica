@@ -1,9 +1,9 @@
 #!/bin/sh
 
-cd /home/tami/guernica
+cd /home/tami/guernica/conf/media
 
 mpv \
-    "conf/media/video.mp4" \
+    "video.mp4" \
     --loop-file=inf \
     --aid=no \
     --vo=gpu \
