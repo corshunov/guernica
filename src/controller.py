@@ -460,7 +460,7 @@ class Controller():
         print("Baby initialized")
 
     def process_baby(self):
-        if self.radar_human_present:
+        if self.radar_human_present and self.radar_distance_action:
             x_new = utils.linear_map(
                 self.angle,
                 self.radar.ANGLE_MIN,
