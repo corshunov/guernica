@@ -432,13 +432,13 @@ class Controller():
                               -self.FLOWER_DC_DELTA,
                               self.FLOWER_DC_DELTA)
 
-        self.flower_dc += dc_diff
-
         if self.flower_stopped:
-            if dc_diff != 0:
+            if self.radar_distance_action:
                 self.flower.start(self.flower_dc)
+                self.flower_stopped = False
         else:
             if dc_diff != 0:
+                self.flower_dc += dc_diff
                 self.flower.change_duty_cycle(self.flower_dc)
             else:
                 if not self.radar_human_present:
