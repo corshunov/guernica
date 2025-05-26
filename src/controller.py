@@ -3,6 +3,7 @@ import math
 from pathlib import Path
 import random
 import time
+import sys
 
 import serial
 
@@ -17,10 +18,13 @@ import utils
 class Controller():
     def __init__(self, base_dpath):
         self.base_dpath = Path(base_dpath)
+        self.cfg_path = self.base_dpath / "conf.cfg"
         self.error_log = self.base_dpath / "controller_error.log"
 
         self.configure()
         self.init_modules()
+
+        self.cfg_mtime = self.cfg_path.stat().st_mtime
 
     def __del__(self):
         try:
@@ -46,8 +50,7 @@ class Controller():
             f.write(f"{text}\n")
 
     def configure(self):
-        path = self.base_dpath / "conf.cfg"
-        self.cfg = utils.load_json(path)
+        self.cfg = utils.load_json(self.cfg_path)
 
         self.flag_radar = "radar" in self.cfg
 
@@ -177,7 +180,13 @@ class Controller():
         cfg = self.cfg['video']
         self.VIDEO_OSD = cfg['osd']
 
-        self.mpv = MPVClient()
+        try:
+            self.mpv = MPVClient()
+        except Exception as e from None
+            text = f"{datetime.now()}: {e}"
+            print(text)
+            self.log(text)
+            sys.exit(1)
 
         self.video_osd_state = self.VIDEO_OSD
 
@@ -572,6 +581,13 @@ class Controller():
                     self.hand_audio_next_mark_position = mark[1]
 
     def process(self):
+        cfg_mtime = self.cfg_path.stat().st_mtime
+        if cfg_mtime != self.cfg_mtime:
+            text = "{self.dt}: exiting due to config file change"
+            print(text)
+            self.log(text)
+            sys.exit(1)
+
         self.video_osd_text = ""
 
         text = f"{self.dt}"
@@ -651,8 +667,6 @@ class Controller():
 
 
 if __name__ == "__main__":
-    import sys
-
     try:
         base_dpath = sys.argv[1]
     except:
