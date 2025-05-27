@@ -182,7 +182,7 @@ class Controller():
 
         try:
             self.mpv = MPVClient()
-        except Exception as e from None
+        except Exception as e:
             text = f"{datetime.now()}: {e}"
             print(text)
             self.log(text)
@@ -462,7 +462,7 @@ class Controller():
     def process_baby(self):
         if self.radar_human_present and self.radar_distance_action:
             x_new = utils.linear_map(
-                self.angle,
+                self.radar_angle,
                 self.radar.ANGLE_MIN,
                 self.radar.ANGLE_MAX,
                 80, 150)
